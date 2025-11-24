@@ -1,0 +1,2994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electro-Tutor Virtual Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // --- Tailwind Configuration ---
+        // Configure Tailwind to use the 'Inter' font and define custom color variables
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-blue': '#104974',
+                        'secondary-yellow': '#FDBA74',
+                        'success-green': '#10B981',
+                        'warning-red': '#EF4444',
+                        'meter-color': '#1E40AF',
+                        'mosfet-color': '#1D4ED8',
+                        'ic-color': '#7C3AED',
+                        'low-signal': '#FCA5A5', // Light Red/Low
+                        'high-signal': '#10B981', // Green/High
+                        'teacher-bg': '#F0F9FF', // Light Blue for Teacher
+                        'friend-bg': '#ECFDF5',   // Light Mint for Friend
+                        'slate-dark': '#1E293B'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* General Body and Layout Styling */
+        body { font-family: 'Inter', 'sans-serif'; background-color: #f1f5f9; } /* Light background slate */
+        #circuit-canvas { background-color: #F8F8FF; } /* Ghost white / very light gray background */
+        
+        /* Component Buttons: Professional Look */
+        .component-button {
+            transition: all 0.2s;
+            box-shadow: 0 4px 0 #94A3B8; /* Slate shadow for depth */
+            font-weight: 600;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+        }
+        .component-button:active {
+            box-shadow: 0 0 0 #94A3B8;
+            transform: translateY(4px);
+        }
+        
+        /* AI Panel Appearance: Clean, Bordered Cards */
+        .teacher-panel {
+            min-height: 120px;
+            background: var(--tw-colors-teacher-bg);
+            border-left: 5px solid #3B82F6; /* Primary blue indicator */
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .friend-panel {
+            min-height: 120px;
+            background: var(--tw-colors-friend-bg); 
+            border-left: 5px solid var(--tw-colors-success-green); /* Success green indicator */
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .chat-bubble {
+            background-color: #ffffff; /* Use white bubble on colored background */
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            display: block; /* Use block display for cleaner flow */
+            max-width: 100%; 
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            margin-top: 0.5rem; 
+        }
+        
+        /* Digital I/O Indicators: Test Equipment Look */
+        .io-indicator {
+            height: 35px;
+            border-radius: 0.25rem;
+            font-family: 'Courier New', monospace; /* Monospaced font for data */
+            font-weight: 700;
+            color: white; 
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.3);
+        }
+        .bg-low-signal {
+            background-color: #DC2626; /* Red for low */
+        }
+        .bg-high-signal {
+            background-color: #10B981; /* Green for high */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- Custom Modal for Alerts/Confirms (General) -->
+    <div id="custom-alert-modal" class="custom-modal hidden">
+        <div class="custom-modal-content">
+            <h3 id="modal-title" class="text-xl font-bold text-gray-800 mb-4">Notification</h3>
+            <p id="modal-message" class="text-gray-600 mb-6"></p>
+            <div id="modal-actions" class="flex justify-end space-x-3">
+                <!-- Buttons will be appended here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MOSFET Selection Modal -->
+    <div id="mosfet-selection-modal" class="custom-modal hidden">
+        <div class="custom-modal-content w-full sm:w-1/2">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Select MOSFET Model</h3>
+            <p class="text-gray-600 mb-4">Choose the transistor model for your experiment:</p>
+            <div class="mosfet-model-list mb-6">
+                <select id="mosfet-model-select" size="10" class="w-full h-full p-2 border-none focus:ring-0">
+                    <!-- Options populated by JS -->
+                </select>
+            </div>
+            <div class="flex justify-end">
+                <button id="place-mosfet-btn" class="bg-mosfet-color hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-150">
+                    Place Selected MOSFET
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- IC Selection Modal -->
+    <div id="ic-selection-modal" class="custom-modal hidden">
+        <div class="custom-modal-content w-full sm:w-1/2">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Select IC Logic Chip</h3>
+            <p class="text-gray-600 mb-4">Choose a 74LS series chip to place:</p>
+            <div class="ic-model-list mb-6">
+                <select id="ic-model-select" size="10" class="w-full h-full p-2 border-none focus:ring-0">
+                    <!-- Options populated by JS -->
+                </select>
+            </div>
+            <div class="flex justify-end">
+                <button id="place-ic-btn" class="bg-ic-color hover:bg-purple-700 text-white font-bold py-2 px-4 rounded transition duration-150">
+                    Place Selected IC
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-extrabold text-slate-dark mb-6 border-b-4 border-primary-blue pb-2">
+            🔬 Electro-Tutor Virtual Lab: Professional Edition
+        </h1>
+
+        <!-- Experiment Selector -->
+        <div class="bg-white p-4 rounded-xl shadow-lg mb-4">
+            <label for="experiment-select" class="text-sm font-bold text-gray-700 block mb-2">Experiment Protocol Selection:</label>
+            <select id="experiment-select" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                <option value="OHMS_LAW">1. DC Analysis: Ohm's Law (Series)</option>
+                <option value="MOSFET_SWITCH">2. Semiconductor Control: MOSFET Switching</option>
+                <option value="CS_AMPLIFIER">3. Analog Biasing: Common Source Amplifier (DC)</option>
+                <option value="DIGITAL_LOGIC">4. Digital Systems: Conceptual IC Testing</option>
+            </select>
+        </div>
+
+
+        <!-- Experiment Goal & Controls -->
+        <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
+            <h2 id="experiment-title" class="text-xl font-bold text-slate-dark mb-3"></h2>
+            <p class="text-sm text-gray-600">Objective: <span id="experiment-goal-text" class="font-bold text-primary-blue"></span></p>
+            <div class="mt-4 flex flex-col sm:flex-row gap-4">
+                <button id="run-simulation" class="w-full sm:w-1/2 bg-success-green hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-150">
+                    EXECUTE ANALYSIS
+                </button>
+                <button id="reset-circuit" class="w-full sm:w-1/2 bg-warning-red hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg transition duration-150">
+                    CLEAR WORKSPACE
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:col-span-1 lg:grid-cols-3 gap-6">
+            
+            <!-- ====== COLUMN 1: CONTROLS (Palette, Editor, Teacher AI) ====== -->
+            <div class="lg:col-span-1 space-y-6">
+                
+                <!-- Component Palette (Organized) -->
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-lg font-semibold text-slate-dark mb-4 border-b pb-2">Component Library</h3>
+                    
+                    <div class="space-y-4">
+                        <p class="font-bold text-sm text-gray-600">Power / Reference</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button id="add-battery" data-component="Battery" class="component-button bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                🔋 Source
+                            </button>
+                            <button id="add-vcc" data-component="VCC" class="component-button bg-red-800 hover:bg-red-900 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                ⬆️ VCC Rail
+                            </button>
+                            <button id="add-ground" data-component="Ground" class="component-button bg-slate-dark hover:bg-gray-700 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                ⬇️ Ground
+                            </button>
+                        </div>
+
+                        <p class="font-bold text-sm text-gray-600">Passive / Loads</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button id="add-resistor" data-component="Resistor" class="component-button bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                〰️ Resistor
+                            </button>
+                            <button id="add-capacitor" data-component="Capacitor" class="component-button bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                || Capacitor
+                            </button>
+                            <button id="add-inductor" data-component="Inductor" class="component-button bg-yellow-700 hover:bg-yellow-800 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                ⍛ Inductor
+                            </button>
+                        </div>
+                        
+                        <p class="font-bold text-sm text-gray-600">Active / Logic</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button id="add-led" data-component="LED" class="component-button bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                💡 LED
+                            </button>
+                            <button id="add-switch" data-component="Switch" class="component-button bg-slate-500 hover:bg-slate-600 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                🔌 Switch
+                            </button>
+                            <button id="add-mosfet" data-component="MOSFET" class="component-button bg-mosfet-color hover:bg-blue-700 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                ⏁ MOSFET
+                            </button>
+                        </div>
+                        
+                        <p class="font-bold text-sm text-gray-600">Digital / Measurement</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button id="add-multimeter" data-component="Multimeter" class="component-button bg-meter-color hover:bg-indigo-700 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                🎛️ Multimeter
+                            </button>
+                             <button id="add-digital-in" data-component="DigitalInput" class="component-button bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                👆 Digital In
+                            </button>
+                             <button id="add-digital-out" data-component="DigitalOutput" class="component-button bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-1 rounded-lg text-xs">
+                                💡 Digital Out
+                            </button>
+                        </div>
+
+                        <p class="font-bold text-sm text-gray-600">Integrated Circuits</p>
+                        <button id="add-ic" data-component="IC" class="component-button bg-ic-color hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg text-sm col-span-2 w-full">
+                            <span role="img" aria-label="ic">⚙️</span> IC Logic Chip (Select Model)
+                        </button>
+
+
+                        <!-- Wire remains simple -->
+                        <button id="add-wire" data-component="Wire" class="component-button bg-secondary-yellow hover:bg-yellow-400 text-slate-dark font-medium py-2 px-4 rounded-lg text-sm col-span-2 w-full">
+                            <span role="img" aria-label="wire">➖</span> Connect Wire
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Selected Component Editor -->
+                <div id="component-editor-card" class="bg-white p-6 rounded-xl shadow-lg hidden">
+                    <h3 class="text-lg font-semibold text-slate-dark mb-4 border-b pb-2">Component Properties: <span id="editor-component-type" class="font-bold text-primary-blue"></span></h3>
+                    
+                    <div id="multimeter-mode-selector" class="hidden space-y-2">
+                        <span class="text-gray-700 block font-semibold">Measurement Mode:</span>
+                        <select id="editor-multimeter-mode" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                            <option value="None">-- Select Mode --</option>
+                            <option value="V">Voltmeter (V)</option>
+                            <option value="A">Ammeter (A)</option>
+                        </select>
+                        <p class="text-xs text-gray-500 italic">V: Connect parallel (across 1 component). A: Connect in series (break a wire).</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <label id="component-value-label" class="block">
+                            <span class="text-gray-700">Value (<span id="editor-unit">V</span>):</span>
+                            <input type="number" id="editor-component-value" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" step="0.1" min="0.1" required>
+                        </label>
+                        <div class="flex flex-wrap gap-2">
+                            <button id="save-component-value" class="w-full sm:w-1/3 bg-success-green hover:bg-green-600 text-white font-bold py-2 rounded-lg transition duration-150 text-sm">
+                                SAVE
+                            </button>
+                            <!-- Rotation Button Added Here -->
+                            <button id="rotate-component" class="w-full sm:w-1/3 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-lg transition duration-150 text-sm">
+                                ROTATE (90°)
+                            </button>
+                            <button id="delete-component" class="w-full sm:w-1/3 bg-warning-red hover:bg-red-600 text-white font-bold py-2 rounded-lg transition duration-150 text-sm">
+                                DELETE
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- 1. Teacher Assistant (Concept Explanation) -->
+                <div id="teacher-panel-container" class="bg-white p-4 rounded-xl shadow-lg">
+                    <h3 class="text-lg font-bold mb-4 flex items-center text-primary-blue border-b pb-2">
+                        <span role="img" aria-label="teacher" class="mr-2 text-xl">🎓</span> Teacher Assistant (Concept)
+                    </h3>
+                    <div id="teacher-response-area" class="teacher-panel p-3 mb-4 overflow-y-auto max-h-48">
+                        <p class="chat-bubble text-gray-700 text-sm">I'm here to explain concepts and provide component information. Try placing a MOSFET or an IC!</p>
+                    </div>
+                    <div id="teacher-loading-indicator" class="hidden text-center mt-2">
+                        <p class="text-sm text-primary-blue">Fetching conceptual data...</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ====== COLUMN 2 & 3: WORKSPACE, GUIDE, and RESULTS (Maximized) ====== -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Circuit Canvas (MAXIMIZED) -->
+                <div id="canvas-container" class="w-full overflow-hidden rounded-xl shadow-2xl border-4 border-slate-300">
+                    <canvas id="circuit-canvas" class="w-full" width="800" height="400"></canvas>
+                </div>
+                
+                <!-- 2. Friend Assistant (GUIDANCE - MOVED TO THE WORKSPACE COLUMN) -->
+                <div id="friend-panel-container" class="bg-white p-4 rounded-xl shadow-lg">
+                    <h3 class="text-lg font-bold mb-4 flex items-center text-success-green border-b pb-2">
+                        <span role="img" aria-label="friend" class="mr-2 text-xl">🤖</span> Friend Assistant (Real-Time Guide)
+                    </h3>
+                    <div id="friend-response-area" class="friend-panel p-3 mb-4 overflow-y-auto max-h-32">
+                        <p class="chat-bubble text-gray-700 text-sm">I'm your guide! To start, select an experiment from the dropdown above.</p>
+                    </div>
+
+                    <!-- Transcribed Text Output (NEW) -->
+                    <div id="transcribed-text-output" class="text-sm font-semibold text-gray-600 bg-gray-100 p-2 rounded-lg mb-2 hidden">
+                        <!-- Transcription text will appear here -->
+                    </div>
+                    
+                    <!-- Text Input Query and Send Button -->
+                    <div class="flex space-x-2 mb-2">
+                        <input type="text" id="friend-text-query" placeholder="Ask a question or report an error..." 
+                               class="flex-grow rounded-lg p-2 text-sm text-gray-800 focus:ring-primary-blue focus:border-primary-blue border border-gray-300">
+                        <button id="send-friend-query-btn" class="bg-primary-blue hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg transition duration-150 text-sm">
+                            Solve
+                        </button>
+                    </div>
+
+                    <!-- Voice Input -->
+                    <div class="flex flex-col gap-2">
+                        <button id="start-voice-chat-btn" class="w-full bg-red-400 hover:bg-red-500 text-white font-bold py-2 rounded-lg transition duration-150">
+                            <span role="img" aria-label="mic">🎙️</span> START VOICE CHAT
+                        </button>
+                    </div>
+                    
+                    <div id="friend-loading-indicator" class="hidden text-center mt-2">
+                        <p class="text-sm text-primary-blue">Thinking...</p>
+                    </div>
+                </div>
+
+                <!-- Simulation Output (Analog/Digital) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Analog Simulation Output (Left half) -->
+                    <div id="simulation-results-card" class="bg-slate-dark text-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-bold mb-3 flex items-center border-b border-gray-600 pb-2">
+                            <span role="img" aria-label="output-meter" class="mr-2 text-secondary-yellow">📊</span> ANALOG RESULTS
+                        </h3>
+                        <div id="simulation-output" class="text-lg font-mono space-y-2">
+                            <p>Source Voltage (V_src): <span id="output-v" class="font-semibold text-blue-400">0.00 V</span></p>
+                            <p>Total Resistance (R_total): <span id="output-r" class="font-semibold text-gray-400">0.00 Ω</span></p>
+                            <p>Total Current (I): <span id="output-i" class="font-semibold text-success-green">0.0000 A</span></p>
+                            <p id="multimeter-reading-output" class="text-xl font-bold text-secondary-yellow mt-4">MULTIMETER: --</p>
+                            <p id="simulation-status" class="font-bold text-warning-red text-sm">STATUS: Open Circuit / Standby</p>
+                        </div>
+                    </div>
+
+                    <!-- Digital Interface Panel (Right half) -->
+                    <div id="digital-interface-panel" class="bg-white p-6 rounded-xl shadow-lg hidden">
+                        <h3 class="text-xl font-bold text-slate-dark mb-3 flex items-center border-b pb-2">
+                            <span role="img" aria-label="digital-signals" class="mr-2 text-primary-blue">🔌</span> DIGITAL CONTROL
+                        </h3>
+                        <p class="text-sm text-gray-600 italic mb-3">Toggles signal states for I/O pins.</p>
+                        
+                        <!-- Inputs -->
+                        <div class="mb-4">
+                            <p class="text-md font-semibold text-primary-blue mb-2">Input Toggles (L/H)</p>
+                            <div id="digital-inputs-container" class="grid grid-cols-4 gap-2">
+                                <!-- Input Buttons populated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Outputs -->
+                        <div>
+                            <p class="text-md font-semibold text-primary-blue mb-2">Output Indicators</p>
+                            <div id="digital-outputs-container" class="grid grid-cols-4 gap-2">
+                                <!-- Output Indicators populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Custom Modal Functions (Replace alert and confirm) ---
+        /**
+         * Shows a custom alert modal.
+         * @param {string} message - The message to display.
+         */
+        function showCustomAlert(message) {
+            const modal = document.getElementById('custom-alert-modal');
+            document.getElementById('modal-title').textContent = 'Attention';
+            document.getElementById('modal-message').textContent = message;
+            
+            const actions = document.getElementById('modal-actions');
+            actions.innerHTML = ''; // Clear old buttons
+            
+            const okButton = document.createElement('button');
+            okButton.className = 'bg-primary-blue hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-150';
+            okButton.textContent = 'OK';
+            okButton.onclick = () => modal.classList.add('hidden');
+            actions.appendChild(okButton);
+
+            modal.classList.remove('hidden');
+        }
+
+        /**
+         * Shows a custom confirmation modal.
+         * @param {string} message - The confirmation message.
+         * @param {(confirmed: boolean) => void} callback - Function to call with the result.
+         */
+        function showCustomConfirm(message, callback) {
+            const modal = document.getElementById('custom-alert-modal');
+            document.getElementById('modal-title').textContent = 'Confirm Action';
+            document.getElementById('modal-message').textContent = message;
+            
+            const actions = document.getElementById('modal-actions');
+            actions.innerHTML = '';
+
+            const cancelButton = document.createElement('button');
+            cancelButton.className = 'bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded transition duration-150';
+            cancelButton.textContent = 'Cancel';
+            cancelButton.onclick = () => { modal.classList.add('hidden'); callback(false); };
+            actions.appendChild(cancelButton);
+
+            const confirmButton = document.createElement('button');
+            confirmButton.className = 'bg-warning-red hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-150';
+            confirmButton.textContent = 'Confirm Delete';
+            confirmButton.onclick = () => { modal.classList.add('hidden'); callback(true); };
+            actions.appendChild(confirmButton);
+
+            modal.classList.remove('hidden');
+        }
+
+
+        // --- Experiment Definitions & Global State ---
+
+        const EXPERIMENTS = {
+            OHMS_LAW: {
+                name: "1. Ohm's Law - Simple Series Circuit",
+                goal: "Construct a closed series circuit using a 9V Battery and a single 220Ω Resistor.",
+            },
+            MOSFET_SWITCH: {
+                name: "2. MOSFET Switching Circuit (Complex)",
+                goal: "Use a Resistor and an LED in series with the MOSFET's Drain (D, Node 0) and Source (S, Node 1). Connect the MOSFET's Gate terminal (G, Node 2) to VCC to turn the LED ON.",
+            },
+            CS_AMPLIFIER: {
+                name: "3. Single Stage CS Amplifier (DC Bias)",
+                // Focused on the topological construction of the biasing network
+                goal: "Construct the DC biasing network for a Common Source amplifier: Place one MOSFET, one VDD (Battery) and two Resistors (RD and RS). RD connects to the Drain (D, Node 0) and RS connects to the Source (S, Node 1)."
+            },
+             DIGITAL_LOGIC: {
+                name: "4. Digital Logic (Conceptual IC Testing)",
+                goal: "Place an IC Logic Chip, a Digital Input component, and a Digital Output component. Connect Input pins (0-7) to IC input pins, and IC output pins to Output pins (0-7). Then use the control panel to test.",
+            }
+        };
+
+        // Variable to track the current goal for the AI tutor
+        let currentExperimentKey = 'OHMS_LAW'; 
+        let currentGoalText = EXPERIMENTS.OHMS_LAW.goal;
+        
+        // --- Gemini API Configuration ---
+        // Using Vercel proxy to keep API key secure
+        const PROXY_URL = "https://my-proxy-kqdgkoiu2-rasiks-projects-7c6364c8.vercel.app";
+        const API_KEY = ""; // Not needed with proxy, kept for compatibility
+        
+        // --- Circuit State Management ---
+        const GRID_SIZE = 50; // Size of the snap-to grid in pixels
+        let components = []; // Array holding all component objects (including wires)
+        let placingComponent = null; // Stores the component type definition when the user is in placing mode
+        let selectedComponent = null; // Stores the component object currently selected for editing/deletion
+        let connectingNode = null; // Stores the {id, node, x, y} of the first node clicked for a wire connection
+        let lastAction = "Application started."; // Tracks the last user interaction for AI context
+
+        // Digital State (NEW)
+        const NUM_DIGITAL_IO = 8; // Using 8 pins for digital I/O components
+        let digitalInputs = Array(NUM_DIGITAL_IO).fill(0); // 0 = LOW, 1 = HIGH
+        let digitalOutputs = Array(NUM_DIGITAL_IO).fill(0); // 0 = LOW, 1 = HIGH
+        
+        // Global variable to hold the speech recognition object (FIXED: Added declaration)
+        let speechRecognition = null;
+
+        // MOSFET Models (for selection and simulation context)
+        const MOSFET_MODELS = [
+            'IRF540N', 'IRFZ44N', 'IRF840', 'IRLZ44N', '2N7000', 
+            'BS170', 'IRF9540', 'AO3400', 'BSS138', 'Si2302'
+        ];
+        
+        // IC Models (NEW) - Includes name and functional description for AI use
+        const IC_MODELS = {
+            '74LS00': { name: 'Quad 2-Input NAND Gate', desc: 'Contains four independent NAND gates. Used as a basic building block for digital logic circuits.' },
+            '74LS04': { name: 'Hex Inverter', desc: 'Contains six independent NOT gates. Used for signal inversion and logic buffering.' },
+            '74LS08': { name: 'Quad 2-Input AND Gate', desc: 'Contains four independent AND gates. Output is high only if both inputs are high.' },
+            '74LS32': { name: 'Quad 2-Input OR Gate', desc: 'Contains four independent OR gates. Output is high if either input (or both) is high.' },
+            '74LS20': { name: 'Dual 4-Input NAND Gate', desc: 'Contains two independent NAND gates, each accepting four inputs. Useful for combining multiple logic signals.' },
+            '74LS47': { name: 'BCD to 7-Segment Decoder/Driver', desc: 'Converts Binary-Coded Decimal (BCD) input into a signal to drive a common-anode 7-segment display.' },
+            '74LS90': { name: 'Decade Counter (BCD Counter)', desc: 'A 4-bit ripple counter that counts from 0 to 9. Used for frequency division and digital displays.' },
+            '74LS92': { name: 'Divide-by-12 Counter', desc: 'A 4-bit ripple counter that can be configured to divide by 2, 6, or 12. Used for custom frequency division.' },
+            '74LS93': { name: '4-Bit Binary Counter', desc: 'A 4-bit ripple binary counter (counts 0 to 15). Used for general counting and frequency division.' },
+            '74LS138': { name: '3-to-8 Line Decoder/Demultiplexer', desc: 'Decodes three binary inputs into eight unique active-low outputs. Used for routing data or selecting memory locations.' },
+            '74LS139': { name: 'Dual 2-to-4 Line Decoder/Demultiplexer', desc: 'Contains two independent 2-to-4 line decoders. Useful for memory mapping and addressing.' },
+            '74LS148': { name: '8-to-3 Line Priority Encoder', desc: 'Encodes 8 inputs into 3-bit binary output, giving priority to the highest-numbered input.' },
+            '74LS157': { name: 'Quad 2-to-1 Data Selector/Multiplexer', desc: 'Selects one of two 4-bit data sources based on a single select line. Used for routing data.' },
+            '74LS153': { name: 'Dual 4-to-1 Data Selector/Multiplexer', desc: 'Contains two independent 4-to-1 multiplexers. Used for selecting one of four data inputs.' },
+            '74LS151': { name: '8-to-1 Data Selector/Multiplexer', desc: 'Selects one of eight data inputs based on a 3-bit select address. Essential for parallel-to-serial conversion.' },
+            '74LS83': { name: '4-Bit Binary Full Adder', desc: 'Performs the addition of two 4-bit binary numbers, providing a sum and a carry-out bit.' },
+            '74LS86': { name: 'Quad 2-Input XOR Gate', desc: 'Contains four independent Exclusive-OR gates. Used for comparison and controlled inversion.' },
+            '74LS245': { name: 'Octal Bus Transceiver (3-State)', desc: 'Provides bidirectional communication between two 8-bit buses. Used for isolation and buffering.' },
+            '74LS373': { name: 'Octal D-Type Transparent Latch', desc: 'An 8-bit latch used to temporarily store data. The outputs follow inputs when the enable signal is high.' },
+            '74LS191': { name: 'Synchronous 4-Bit Up/Down Binary Counter', desc: 'A versatile counter that can increment or decrement synchronously. Used in sequential logic applications.' }
+        };
+
+
+        // Component Definitions (Schema for all component types)
+        const ComponentTypes = {
+            Battery: { symbol: "+/-", value: 9, unit: 'V', color: '#104974', width: 80, height: 40, nodes: 2, editable: true, info: "A DC voltage source. It provides the energy (potential difference) to drive current through the circuit. The long line is positive (+), and the short line is negative (-)." },
+            Resistor: { symbol: "R", value: 220, unit: 'Ω', color: '#374151', width: 80, height: 20, nodes: 2, editable: true, R_equiv: (v) => v, info: "A passive two-terminal component that limits or regulates the flow of electrical current by providing resistance. Governed by Ohm's Law (V=IR)." },
+            Capacitor: { symbol: "C", value: 10, unit: 'μF', color: '#16A34A', width: 60, height: 40, nodes: 2, editable: true, R_equiv: (v) => Infinity, info: "A passive two-terminal component that stores electrical energy in an electric field. It blocks DC current and passes AC current (conceptually treated as an open circuit in DC analysis)." }, // Acts as open circuit in DC sim
+            Inductor: { symbol: "L", value: 10, unit: 'mH', color: '#CA8A04', width: 80, height: 20, nodes: 2, editable: true, R_equiv: (v) => 0, info: "A passive two-terminal component that stores energy in a magnetic field when current flows. It opposes changes in current (conceptually treated as a short circuit in DC analysis)." }, // Acts as short circuit in DC sim
+            LED: { symbol: "LED", value: 2, unit: 'Vf', color: '#DC2626', width: 40, height: 40, nodes: 2, editable: true, R_equiv: (v) => 10, info: "Light-Emitting Diode. It allows current flow in one direction and emits light when forward-biased. It has a fixed forward voltage drop (Vf) and requires current limiting." }, // 10 Ohm series equivalent for current limiting in simulation
+            Switch: { symbol: "SW", value: 1, unit: 'State', color: '#4B5563', width: 60, height: 20, nodes: 2, state: { state: 'open' }, editable: false, info: "An electromechanical component used to interrupt (open) or divert (close) an electric current path manually. Ideal switches have zero resistance when closed." }, 
+            Multimeter: { symbol: "MM", value: 0, unit: 'Measure', color: '#1E40AF', width: 60, height: 60, nodes: 2, editable: false, isMeter: true, state: { mode: 'None', reading: 0 }, info: "A testing instrument used to measure voltage (Voltmeter, V), current (Ammeter, A), or resistance. Must be configured and connected correctly (series for A, parallel for V)." }, 
+            MOSFET: { 
+                symbol: "MOS", 
+                value: 'IRF540N', 
+                unit: 'Model', 
+                color: '#1D4ED8', 
+                width: 80, 
+                height: 40, 
+                nodes: 3, // 3-terminal: 0=Drain, 1=Source, 2=Gate
+                editable: false, 
+                R_equiv: (v) => 0.1, // Small resistance when ON 
+                Vth: 3.5, // Threshold voltage for turn-on (simplified)
+                state: { model: 'IRF540N', gateOn: false },
+                info: "Metal-Oxide-Semiconductor Field-Effect Transistor. A voltage-controlled switch or amplifier. Current flow between Drain (D) and Source (S) is controlled by the voltage applied to the Gate (G) terminal."
+            },
+            IC: { 
+                symbol: "IC", 
+                value: '74LS00', 
+                unit: 'Model', 
+                color: '#7C3AED', 
+                width: 120, 
+                height: 80, 
+                nodes: 14, // 14 pins total (7 on left, 7 on right)
+                editable: false, 
+                isIC: true,
+                state: { model: '74LS00' },
+                info: "Integrated Circuit (IC). A small chip containing multiple logic gates or specialized functions (e.g., counters, decoders)."
+            },
+            DigitalInput: {
+                symbol: "DIN", value: 0, unit: 'Bits', color: '#059669', 
+                width: 120, height: 40, nodes: NUM_DIGITAL_IO, // 8 input pins
+                editable: false, isDigital: true,
+                state: { inputs: digitalInputs },
+                info: "A component block representing 8 digital inputs (0-7). The signal state (High/Low) is controlled using the dedicated Digital Interface panel."
+            },
+             DigitalOutput: {
+                symbol: "DOUT", value: 0, unit: 'Bits', color: '#DC2626', 
+                width: 120, height: 40, nodes: NUM_DIGITAL_IO, // 8 output pins
+                editable: false, isDigital: true,
+                state: { outputs: digitalOutputs },
+                info: "A component block representing 8 digital outputs (0-7). It visually displays the High/Low signal state determined by the circuit connections and the AI's digital logic simulation."
+            },
+            VCC: { symbol: "VCC", value: 0, unit: 'V', color: '#881337', width: 40, height: 40, nodes: 1, editable: false, isRail: true, info: "The positive power supply rail (VCC). Used as a high potential connection point for components, especially in digital circuits to provide operating voltage." }, // 1 node: VCC connection point (for positive rail)
+            Ground: { symbol: "GND", value: 0, unit: 'V', color: '#10B981', width: 40, height: 40, nodes: 1, editable: false, isRail: true, info: "The ground or common reference point for voltage in a circuit. It is generally considered 0V and provides the return path for current." }, // 1 node: Ground connection point (for reference)
+            Wire: { symbol: "-", value: 0, unit: 'm', color: '#374151', width: 10, height: 10, nodes: 2, editable: false, info: "An ideal conductor used to connect two points (nodes) in a circuit, assuming zero resistance." }
+        };
+
+        // --- Canvas Setup ---
+        const canvas = document.getElementById('circuit-canvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvas-container');
+
+        /** Resizes the canvas to fit the container and redraws the circuit. */
+        function resizeCanvas() {
+            // Make canvas fit container width
+            canvas.width = canvasContainer.clientWidth;
+            // MAXIMIZED WORKSPACE SIZE: Min 700px, up to 85% of window height
+            canvas.height = Math.max(700, window.innerHeight * 0.85); 
+            drawCircuit();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Initialization on window load
+        window.onload = () => {
+             // Populate MOSFET model selector on load
+            const mosfetSelector = document.getElementById('mosfet-model-select');
+            MOSFET_MODELS.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                mosfetSelector.appendChild(option);
+            });
+            if (mosfetSelector.options.length > 0) mosfetSelector.value = MOSFET_MODELS[0];
+            
+            // Populate IC model selector on load
+            const icSelector = document.getElementById('ic-model-select');
+            Object.keys(IC_MODELS).forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = `${model} (${IC_MODELS[model].name})`;
+                icSelector.appendChild(option);
+            });
+            if (icSelector.options.length > 0) icSelector.value = Object.keys(IC_MODELS)[0];
+
+            // Initialize Digital I/O UI (NEW)
+            initializeDigitalIO();
+
+            // Set the initial experiment state (Ohm's Law)
+            updateExperiment(currentExperimentKey);
+            document.getElementById('experiment-select').value = currentExperimentKey;
+
+            resizeCanvas();
+        };
+
+
+        /**
+         * Helper function to calculate the absolute canvas coordinates of a component's node,
+         * accounting for rotation.
+         */
+        function getNodeAbsCoords(comp, nodeId) {
+            // CRITICAL FIX: Guard against undefined component or missing definition
+            if (!comp || !comp.type) return { x: 0, y: 0 }; 
+            const def = ComponentTypes[comp.type];
+            if (!def || !def.width || !def.height) return { x: comp.x || 0, y: comp.y || 0 }; // Fallback to component center
+            
+            const halfW = def.width / 2;
+            const halfH = def.height / 2;
+            const compRot = comp.rotation || 0;
+            let x_orig = 0; // X position relative to component center (before rotation)
+            let y_orig = 0; // Y position relative to component center (before rotation)
+
+            // 1. Calculate Un-rotated Node Position
+            if (def.nodes === 2) {
+                x_orig = (nodeId === 0 ? -halfW : halfW);
+            } else if (def.nodes === 1) {
+                y_orig = halfH;
+            } else if (def.nodes === 3 && comp.type === 'MOSFET') {
+                if (nodeId === 0) x_orig = -halfW; // Drain (Left)
+                if (nodeId === 1) x_orig = halfW; // Source (Right)
+                if (nodeId === 2) y_orig = -halfH - 10; // Gate (Top, Extended)
+            } else if (def.isDigital && def.nodes === NUM_DIGITAL_IO) {
+                 // Digital I/O pins are always horizontal along the bottom edge
+                 const pinSpacing = def.width / (NUM_DIGITAL_IO + 1);
+                 y_orig = halfH; // Fixed to bottom edge
+                 x_orig = -halfW + pinSpacing * (nodeId + 1);
+            } else if (comp.type === 'IC' && def.nodes === 14) {
+                 // IC Pins (7 left, 7 right)
+                 const pinIndex = nodeId;
+                 const pinHeight = halfH * 2 / 8;
+                 
+                 if (pinIndex >= 0 && pinIndex <= 6) { // Pins 1-7 (Left side) -> Node index 0-6
+                     x_orig = -halfW;
+                     y_orig = -halfH + pinHeight * (pinIndex + 1);
+                 } else if (pinIndex >= 7 && pinIndex <= 13) { // Pins 8-14 (Right side) -> Node index 7-13
+                     x_orig = halfW;
+                     y_orig = halfH - pinHeight * (pinIndex - 6);
+                 }
+            }
+            
+            // --- Apply Rotation ---
+            const rotationRad = compRot * Math.PI / 180;
+            const cosA = Math.cos(rotationRad);
+            const sinA = Math.sin(rotationRad);
+            
+            // Rotated coordinates relative to the component center (comp.x, comp.y)
+            const x_rot = x_orig * cosA - y_orig * sinA;
+            const y_rot = x_orig * sinA + y_orig * cosA;
+
+            // Absolute coordinates on the canvas
+            return { x: comp.x + x_rot, y: comp.y + y_rot };
+        }
+
+
+        // --- Drawing Functions (Updated for Rotation) ---
+        /** Draws the background grid on the canvas for visual alignment. */
+        function drawGrid() {
+            ctx.strokeStyle = '#cdd5e8';
+            ctx.lineWidth = 0.5;
+            for (let x = GRID_SIZE; x < canvas.width; x += GRID_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = GRID_SIZE; y < canvas.height; y += GRID_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+
+        /** Snaps raw coordinates to the nearest grid coordinates for component placement. */
+        function getGridCoords(x, y) {
+            return {
+                x: Math.round(x / GRID_SIZE) * GRID_SIZE,
+                y: Math.round(y / GRID_SIZE) * GRID_SIZE
+            };
+        }
+
+        /** Draws a single component on the canvas based on its type, state, and rotation. */
+        function drawComponent(comp) {
+            // CRITICAL FIX: Guard against undefined component
+            if (!comp || !comp.type) return; 
+            const def = ComponentTypes[comp.type];
+            if (!def) return; 
+            
+            const halfW = def.width / 2;
+            const halfH = def.height / 2;
+            const compRot = comp.rotation || 0;
+            const componentLength = 50; 
+            const rotationRad = compRot * Math.PI / 180;
+
+            ctx.save();
+            ctx.translate(comp.x, comp.y);
+            
+            // Apply Rotation to the visual symbol
+            ctx.rotate(rotationRad); 
+            
+
+            // 1. Draw Component Body/Symbol (Rotated Context)
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+
+            if (comp.type === 'Resistor') {
+                // Resistor: Zig-zag symbol
+                ctx.beginPath();
+                const num_segments = 7;
+                const segment_width = componentLength / (num_segments - 1);
+                const zig_zag_height = 10;
+                
+                // Draw connecting leads
+                ctx.moveTo(-halfW, 0);
+                ctx.lineTo(-componentLength / 2, 0);
+                ctx.moveTo(componentLength / 2, 0);
+                ctx.lineTo(halfW, 0);
+
+                // Draw the zig-zag
+                ctx.moveTo(-componentLength / 2, 0);
+                for (let i = 0; i < num_segments; i++) {
+                    const x = -componentLength / 2 + i * segment_width;
+                    const y = i % 2 === 0 ? 0 : (i % 4 === 1 ? zig_zag_height : -zig_zag_height);
+                    if (i > 0 && i < num_segments - 1) {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.lineTo(componentLength / 2, 0);
+                ctx.stroke();
+
+            } else if (comp.type === 'Battery') {
+                // Battery: Long/short bar symbol
+                const bar_width = 25;
+
+                // Positive terminal (Node 1 - Right side)
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(componentLength / 2, -bar_width / 2);
+                ctx.lineTo(componentLength / 2, bar_width / 2);
+                ctx.stroke();
+
+                // Negative terminal (Node 0 - Left side)
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(-componentLength / 2, -bar_width / 4);
+                ctx.lineTo(-componentLength / 2, bar_width / 4);
+                ctx.stroke();
+
+                // Connecting leads
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-halfW, 0);
+                ctx.lineTo(-componentLength / 2, 0);
+                ctx.moveTo(componentLength / 2, 0);
+                ctx.lineTo(halfW, 0);
+                ctx.stroke();
+
+            } else if (comp.type === 'Inductor') {
+                // Inductor: Coil symbol
+                ctx.beginPath();
+                const coil_radius = 5;
+                const num_loops = 5;
+                const loop_length = componentLength / num_loops;
+
+                ctx.moveTo(-halfW, 0);
+                ctx.lineTo(-componentLength / 2, 0);
+                
+                for (let i = 0; i <= num_loops; i++) {
+                    const x = -componentLength / 2 + i * loop_length;
+                    const y_offset = i % 2 === 0 ? coil_radius : -coil_radius;
+                    ctx.arc(x, 0, coil_radius, Math.PI + (i % 2) * Math.PI, (i % 2) * Math.PI, i % 2 === 0);
+                }
+                
+                ctx.lineTo(componentLength / 2, 0);
+                ctx.lineTo(halfW, 0);
+                ctx.stroke();
+
+            } else if (comp.type === 'Capacitor') {
+                // Capacitor: Two parallel lines
+                ctx.strokeStyle = def.color;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(-componentLength / 2 + 5, -halfH);
+                ctx.lineTo(-componentLength / 2 + 5, halfH);
+                ctx.moveTo(componentLength / 2 - 5, -halfH);
+                ctx.lineTo(componentLength / 2 - 5, halfH);
+                ctx.stroke();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#000';
+                
+                // Connecting leads
+                ctx.beginPath();
+                ctx.moveTo(-halfW, 0);
+                ctx.lineTo(-componentLength / 2 + 5, 0);
+                ctx.moveTo(componentLength / 2 - 5, 0);
+                ctx.lineTo(halfW, 0);
+                ctx.stroke();
+            } else if (comp.type === 'LED') {
+                // LED: Circle/Bulb shape with arrows
+                ctx.fillStyle = comp.state.state === 'on' ? '#FBBF24' : def.color; 
+                ctx.beginPath();
+                ctx.arc(0, 0, halfH, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Draw light rays if on (simulating light emission)
+                if (comp.state.state === 'on') {
+                    ctx.strokeStyle = '#FBBF24';
+                    ctx.lineWidth = 1;
+                    for (let i = 0; i < 6; i++) {
+                        const angle = i * Math.PI / 3;
+                        ctx.beginPath();
+                        ctx.moveTo(halfH * Math.cos(angle), halfH * Math.sin(angle));
+                        ctx.lineTo((halfH + 10) * Math.cos(angle), (halfH + 10) * Math.sin(angle));
+                        ctx.stroke();
+                    }
+                }
+            } else if (comp.type === 'Switch') {
+                 // Switch: Simple open/closed bar symbol (as before)
+                ctx.strokeStyle = def.color;
+                ctx.lineWidth = 4;
+                
+                const pivotX = -halfW;
+                const pivotY = 0;
+                
+                ctx.fillStyle = def.color;
+                ctx.beginPath();
+                ctx.arc(pivotX, pivotY, 5, 0, Math.PI * 2); // Draw Node 0 (pivot point)
+                ctx.fill();
+                ctx.stroke();
+
+                // Draw the movable lever based on state
+                if (comp.state.state === 'open') {
+                    ctx.beginPath();
+                    ctx.moveTo(pivotX, pivotY);
+                    ctx.lineTo(pivotX + 30, pivotX + 20); // Open: points up-right 
+                    ctx.stroke();
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(pivotX, pivotY);
+                    ctx.lineTo(pivotX + def.width, pivotY); // Closed: straight to node 1
+                    ctx.stroke();
+                }
+            } else if (comp.type === 'Multimeter') {
+                 // Multimeter: Box symbol (as before)
+                ctx.fillStyle = def.color;
+                ctx.fillRect(-halfW, -halfH, def.width, def.height);
+                ctx.strokeRect(-halfW, -halfH, def.width, def.height);
+
+                // Internal display
+                ctx.fillStyle = '#111827'; 
+                ctx.fillRect(-halfW + 5, -halfH + 5, def.width - 10, def.height - 10);
+            } else if (comp.type === 'MOSFET') {
+                // MOSFET: Simplified N-MOS symbol
+                const channelX = 0;
+
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                
+                // 1. Draw Channel (Vertical bar) - Drain/Source connection points
+                ctx.beginPath();
+                ctx.moveTo(channelX, -halfH + 5);
+                ctx.lineTo(channelX, halfH - 5);
+                ctx.stroke();
+
+                // 2. Draw Gate (Horizontal bar) - Node 2 connection point
+                const gateX = channelX - 10;
+                ctx.beginPath();
+                ctx.moveTo(gateX, -halfH + 5);
+                ctx.lineTo(gateX, halfH - 5);
+                ctx.stroke();
+
+                // 3. Draw Gate lead (connecting to Node 2)
+                ctx.beginPath();
+                ctx.moveTo(gateX, -halfH);
+                ctx.lineTo(gateX, -halfH - 10); // Extends up to Gate node
+                ctx.stroke();
+                
+                // 4. Draw Drain/Source connection lines (connecting nodes 0 & 1 to channel)
+                ctx.beginPath();
+                ctx.moveTo(-halfW, 0); // Node 0 lead
+                ctx.lineTo(channelX, 0); // Connects to channel center
+                ctx.moveTo(channelX, 0); // Node 1 lead
+                ctx.lineTo(halfW, 0); // Connects to Node 1
+                ctx.stroke();
+
+                // 5. Fill state color in the central channel area for visual feedback
+                ctx.fillStyle = comp.state.gateOn ? '#93C5FD' : '#FFFFFF';
+                ctx.fillRect(channelX - 1, -halfH + 5, 2, halfH * 2 - 10);
+
+            } else if (comp.type === 'IC' || comp.type === 'DigitalInput' || comp.type === 'DigitalOutput') {
+                // IC and Digital I/O: Simple Rectangular Chip/Interface
+                ctx.fillStyle = def.color;
+                ctx.fillRect(-halfW, -halfH, def.width, def.height);
+                ctx.strokeRect(-halfW, -halfH, def.width, def.height);
+                
+                // Draw pin notch (top center) for IC only
+                if (comp.type === 'IC') {
+                    ctx.beginPath();
+                    ctx.arc(0, -halfH, 5, Math.PI, 0, false);
+                    ctx.fillStyle = '#000';
+                    ctx.fill();
+                }
+
+            } else if (comp.type === 'VCC') {
+                // VCC Rail Symbol (Triangle/Arrow up, centered)
+                ctx.fillStyle = def.color;
+                ctx.beginPath();
+                ctx.moveTo(0, halfH); 
+                ctx.lineTo(-halfW, halfH); 
+                ctx.lineTo(0, -halfH); 
+                ctx.lineTo(halfW, halfH); 
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else if (comp.type === 'Ground') {
+                // Ground Symbol (three horizontal lines of decreasing width)
+                ctx.strokeStyle = def.color;
+                ctx.lineWidth = 3;
+
+                // Vertical line connecting to the node
+                ctx.beginPath();
+                ctx.moveTo(0, -halfH); 
+                ctx.lineTo(0, 0); 
+                ctx.stroke();
+
+                // Horizontal lines
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(-15, 5);
+                ctx.lineTo(15, 5);
+                ctx.stroke();
+
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(-10, 10);
+                ctx.lineTo(10, 10);
+                ctx.stroke();
+
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-5, 15);
+                ctx.lineTo(5, 15);
+                ctx.stroke();
+            }
+
+
+            // --- End Component Symbol Drawing ---
+
+
+            // 2. Draw Value/State Text and Terminal Labels
+            // REVERSE ROTATION: This context change ensures that text and labels are always drawn horizontally 
+            // relative to the screen, even if the symbol is rotated.
+            
+            ctx.rotate(-rotationRad); 
+            
+            ctx.font = '12px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            let text = `${comp.value}${def.unit}`;
+
+            // --- Label Positioning relies on getNodeAbsCoords to find rotated anchor point ---
+            
+            // General Component Text (Resistor, Inductor, Capacitor values)
+            if (comp.type === 'Resistor' || comp.type === 'Inductor' || comp.type === 'Capacitor') {
+                ctx.fillStyle = 'black';
+                ctx.fillText(text, 0, -20);
+                text = ''; 
+            }
+            
+            if (comp.type === 'Battery') {
+                ctx.fillStyle = 'black';
+                ctx.fillText(text, 0, -25);
+                text = '';
+                // Draw polarity markers at the rotated Node 0 and Node 1 positions
+                ctx.font = '16px Inter';
+                const posNode = getNodeAbsCoords({x: 0, y: 0, rotation: compRot, type: comp.type}, 1);
+                const negNode = getNodeAbsCoords({x: 0, y: 0, rotation: compRot, type: comp.type}, 0);
+                
+                // Position relative to the component's center (0,0) with fixed offsets
+                ctx.fillText('+', posNode.x - comp.x + 5, posNode.y - comp.y); 
+                ctx.fillText('-', negNode.x - comp.x - 5, negNode.y - comp.y);
+            }
+            
+            // Multimeter Display Text
+            if (comp.type === 'Multimeter') {
+                ctx.fillStyle = '#10B981'; 
+                const modeText = comp.state.mode === 'V' ? 'V' : (comp.state.mode === 'A' ? 'A' : 'MM');
+                const readingText = comp.state.reading !== undefined && comp.state.reading !== '--' ? comp.state.reading.toFixed(3) : '--';
+                const unitText = comp.state.mode === 'V' ? 'V' : (comp.state.mode === 'A' ? 'A' : '');
+                
+                ctx.fillText(modeText, 0, -15);
+                ctx.font = '14px Inter';
+                ctx.fillText(readingText + unitText, 0, 10);
+                text = ''; 
+            }
+            
+            // LED Status Text
+            if (comp.type === 'LED') {
+                ctx.fillStyle = 'black';
+                ctx.fillText(comp.value + def.unit, 0, -25);
+                ctx.font = '10px Inter';
+                ctx.fillText(comp.state.state === 'on' ? 'ON' : 'OFF', 0, 0);
+                text = '';
+            }
+
+            // Switch Status Text
+            if (comp.type === 'Switch') {
+                ctx.fillStyle = 'black';
+                ctx.font = '10px Inter';
+                ctx.fillText(comp.state.state === 'open' ? 'OPEN' : 'CLOSED', 0, -halfH - 10);
+                text = '';
+            }
+
+            // VCC/GND Labels (Main)
+            if (comp.type === 'VCC') {
+                ctx.fillStyle = '#104974';
+                ctx.fillText('VCC', 0, -25);
+                text = '';
+            }
+            if (comp.type === 'Ground') {
+                ctx.fillStyle = '#104974'; 
+                ctx.fillText('GND', 0, -25);
+                text = '';
+            }
+            
+            // IC Label
+            if (comp.type === 'IC') {
+                ctx.fillStyle = 'white'; 
+                ctx.font = '14px Inter bold';
+                ctx.fillText(comp.value, 0, -5);
+                ctx.font = '10px Inter';
+                ctx.fillText(IC_MODELS[comp.value]?.name || 'Logic Chip', 0, 15);
+                
+                // Draw pin number labels
+                ctx.fillStyle = 'white';
+                for(let i=0; i<def.nodes; i++) {
+                     const pinNum = (i >= 7) ? (14 - (i - 7)) : (i + 1); // Maps Node 0->Pin 1, Node 6->Pin 7, Node 7->Pin 14, Node 13->Pin 8
+                     const nodeAbs = getNodeAbsCoords({ x: 0, y: 0, rotation: compRot, type: comp.type }, i);
+                     
+                     ctx.font = '8px Inter';
+                     let offsetX = (i >= 7) ? 8 : -8; // Right pins offset right, left pins offset left
+                     let offsetY = 0;
+
+                     if (i >= 7) { // Right side pins (8-14)
+                         ctx.textAlign = 'left';
+                         // Map pin number to node index 7-13
+                         const nodeIndex = 14 - pinNum;
+                         
+                     } else { // Left side pins (1-7)
+                         ctx.textAlign = 'right';
+                     }
+                     
+                     ctx.fillText(pinNum, nodeAbs.x - comp.x + offsetX, nodeAbs.y - comp.y + offsetY);
+                }
+                text = '';
+            }
+            
+            // Digital I/O Labels 
+            if (comp.type === 'DigitalInput' || comp.type === 'DigitalOutput') {
+                 ctx.fillStyle = 'white'; 
+                 ctx.font = '14px Inter bold';
+                 ctx.fillText(comp.type === 'DigitalInput' ? 'INPUTS' : 'OUTPUTS', 0, -10); 
+                 ctx.font = '10px Inter';
+                 ctx.fillText('(Control Pins 0-7)', 0, 10); 
+                 
+                 // Draw pin number labels
+                 ctx.fillStyle = 'white';
+                 for(let i=0; i<def.nodes; i++) {
+                    const nodeAbs = getNodeAbsCoords({ x: 0, y: 0, rotation: compRot, type: comp.type }, i);
+                    
+                    ctx.font = '8px Inter bold';
+                    ctx.textAlign = 'center';
+                    // Position label slightly above the pin, compensating for rotation
+                    ctx.fillText(i, nodeAbs.x - comp.x, nodeAbs.y - comp.y - 10);
+                 }
+                 
+                 text = '';
+            }
+
+            // MOSFET Terminal Labels (D, S, G) - FIXED FOR ROTATION READABILITY
+            if (comp.type === 'MOSFET') {
+                ctx.fillStyle = '#104974'; 
+                ctx.font = '12px Inter bold';
+                
+                // Calculate rotated node positions relative to the component center (0,0)
+                const gNode = getNodeAbsCoords({ x: 0, y: 0, rotation: compRot, type: comp.type}, 2);
+                const dNode = getNodeAbsCoords({ x: 0, y: 0, rotation: compRot, type: comp.type}, 0);
+                const sNode = getNodeAbsCoords({ x: 0, y: 0, rotation: compRot, type: comp.type}, 1);
+
+                // Draw Labels at Node Positions + Fixed Screen Offsets
+                
+                // D label (Node 0 - Drain)
+                ctx.textAlign = 'right';
+                ctx.fillText('D', dNode.x - comp.x - 5, dNode.y - comp.y - 5); 
+
+                // S label (Node 1 - Source)
+                ctx.textAlign = 'left'; 
+                ctx.fillText('S', sNode.x - comp.x + 5, sNode.y - comp.y + 5); 
+
+                // G label (Node 2 - Gate)
+                ctx.textAlign = 'center';
+                ctx.fillText('G', gNode.x - comp.x, gNode.y - comp.y - 15); // Fixed vertical offset (upwards)
+                
+                
+                ctx.font = '10px Inter';
+                ctx.fillText(comp.state.model, 0, 20);
+                ctx.fillText(comp.state.gateOn ? 'ON' : 'OFF', 0, -5);
+                text = '';
+            }
+
+            if (text) ctx.fillText(text, 0, 0);
+            
+            // RE-APPLY ROTATION: Needed to draw nodes and highlights correctly relative to the symbol's rotation
+            ctx.rotate(rotationRad); 
+
+
+            // 3. Highlight the currently selected component (draws in the rotated context)
+            if (selectedComponent && selectedComponent.id === comp.id) {
+                ctx.strokeStyle = '#FBBF24'; // Yellow border for selection
+                ctx.lineWidth = 4;
+                if (comp.type === 'LED' || comp.type === 'Multimeter' || comp.type === 'IC' || comp.type === 'DigitalInput' || comp.type === 'DigitalOutput') {
+                    ctx.strokeRect(-halfW, -halfH, def.width, def.height);
+                }
+            }
+
+
+            // 4. Draw Connection Nodes (Input/Output Points) - Draws in the rotated context
+            let nodes = [];
+            if (def.nodes === 2) { nodes = [{ id: 0 }, { id: 1 }]; } 
+            else if (def.nodes === 1) { nodes = [{ id: 0 }]; } 
+            else if (def.nodes === 3 && comp.type === 'MOSFET') { nodes = [{ id: 0 }, { id: 1 }, { id: 2 }]; }
+            else if (comp.type === 'IC' && def.nodes === 14) { for(let i=0; i<14; i++) nodes.push({ id: i }); } 
+            else if (def.isDigital && def.nodes === NUM_DIGITAL_IO) { for(let i=0; i<NUM_DIGITAL_IO; i++) nodes.push({ id: i }); }
+
+            
+            nodes.forEach(node => {
+                // Get the absolute position of the node (post-rotation)
+                // We use getNodeAbsCoords *without* comp.x/comp.y to get local coordinates for drawing the arc
+                const nodeLocal = getNodeAbsCoords({ x: 0, y: 0, rotation: compRot, type: comp.type }, node.id);
+                
+                const nodeX = nodeLocal.x;
+                const nodeY = nodeLocal.y;
+
+                // Determine if the node is connected
+                const isConnected = components.some(c => c.type === 'Wire' && c.from && c.to && (
+                    (c.from.id === comp.id && c.from.node === node.id) ||
+                    (c.to.id === comp.id && c.to.node === node.id)
+                ));
+
+                if (comp.type === 'Switch' && node.id === 0) return;
+
+                ctx.fillStyle = isConnected ? '#10B981' : '#EF4444'; // Green if connected, Red if open
+                ctx.beginPath();
+                ctx.arc(nodeX, nodeY, 5, 0, Math.PI * 2); 
+                ctx.fill();
+
+                // Highlight the currently active node for connection (wire start point)
+                if (connectingNode && connectingNode.id === comp.id && connectingNode.node === node.id) {
+                    ctx.strokeStyle = '#FBBF24';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+            });
+
+
+            ctx.restore();
+        }
+
+        /** Draws a wire connection between two component nodes. */
+        function drawWire(wire) {
+            const fromComp = components.find(c => c.id === wire.from.id);
+            const toComp = components.find(c => c.id === wire.to.id);
+
+            // CRITICAL FIX: Guard against wires connected to deleted components
+            if (!fromComp || !toComp) return; 
+
+            // Get absolute coordinates using the helper function (accounts for rotation)
+            const fromCoords = getNodeAbsCoords(fromComp, wire.from.node);
+            const toCoords = getNodeAbsCoords(toComp, wire.to.node);
+
+            // Draw a simple straight line wire
+            ctx.strokeStyle = '#374151'; // Darker wire color for clarity
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(fromCoords.x, fromCoords.y);
+            ctx.lineTo(toCoords.x, toCoords.y);
+            ctx.stroke();
+        }
+        
+        /** Clears the canvas and orchestrates the drawing of the grid, wires, and components. */
+        function drawCircuit() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            
+            // CRITICAL FIX: Filter out any null/undefined components to prevent crashes
+            const validComponents = components.filter(c => c); 
+            
+            // Draw Wires first so components sit on top
+            validComponents.forEach(comp => {
+                if (comp.type === 'Wire') {
+                    drawWire(comp);
+                }
+            });
+            // Draw Components second
+            validComponents.forEach(comp => {
+                if (comp.type !== 'Wire') {
+                    drawComponent(comp);
+                }
+            });
+        }
+
+
+        // --- Interaction Helper Functions ---
+
+        /** Finds a component by checking if the coordinates fall within its bounding box. */
+        function findComponent(x, y) {
+            // NOTE: Simple rectangular hit test; does not account for component rotation.
+            for (const comp of components) {
+                if (comp.type === 'Wire') continue;
+
+                const def = ComponentTypes[comp.type];
+                const dx = x - comp.x;
+                const dy = y - comp.y;
+                
+                // Simple rectangular hit test
+                if (Math.abs(dx) < def.width / 2 && Math.abs(dy) < def.height / 2) {
+                    return comp;
+                }
+            }
+            return null;
+        }
+
+        /** Finds a connection node by checking if the coordinates fall within a small radius of the node point. */
+        function findNode(x, y) {
+            for (const comp of components) {
+                if (comp.type === 'Wire') continue;
+                const def = ComponentTypes[comp.type];
+                
+                for (let i = 0; i < def.nodes; i++) {
+                     // getNodeAbsCoords already handles rotation
+                     const absCoords = getNodeAbsCoords(comp, i); 
+                     if (Math.abs(x - absCoords.x) < 10 && Math.abs(y - absCoords.y) < 10) {
+                        return { id: comp.id, node: i, x: absCoords.x, y: absCoords.y };
+                     }
+                }
+            }
+            return null;
+        }
+
+        /** Finds a wire segment near the given coordinates for deletion using line-point distance calculation. */
+        function findWire(x, y) {
+            const clickTolerance = 20; // Increased tolerance for easier clicking
+            for (const wire of components) {
+                if (wire.type !== 'Wire') continue;
+
+                const fromComp = components.find(c => c.id === wire.from.id);
+                const toComp = components.find(c => c.id === wire.to.id);
+
+                if (!fromComp || !toComp) continue;
+
+                const fromCoords = getNodeAbsCoords(fromComp, wire.from.node);
+                const toCoords = getNodeAbsCoords(toComp, wire.to.node);
+
+                const x1 = fromCoords.x;
+                const y1 = fromCoords.y;
+                const x2 = toCoords.x;
+                const y2 = toCoords.y;
+
+                const minX = Math.min(x1, x2) - clickTolerance;
+                const maxX = Math.max(x1, x2) + clickTolerance;
+                const minY = Math.min(y1, y2) - clickTolerance;
+                const maxY = Math.max(y1, y2) + clickTolerance;
+
+                if (x < minX || x > maxX || y < minY || y > maxY) {
+                    continue; 
+                }
+
+                const lengthSq = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+                if (lengthSq === 0) continue; 
+
+                let t = ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / lengthSq;
+                t = Math.max(0, Math.min(1, t));
+
+                const closestX = x1 + t * (x2 - x1);
+                const closestY = y1 + t * (y2 - y1);
+
+                const distSq = (x - closestX) * (x - closestX) + (y - closestY) * (y - closestY);
+
+                if (Math.sqrt(distSq) <= clickTolerance) {
+                    return wire;
+                }
+            }
+            return null;
+        }
+
+        // --- Component Editor UI Functions ---
+
+        const editorCard = document.getElementById('component-editor-card');
+        const editorType = document.getElementById('editor-component-type');
+        const editorValueInput = document.getElementById('editor-component-value');
+        const editorUnit = document.getElementById('editor-unit');
+        const editorValueLabel = document.getElementById('component-value-label');
+        const multimeterModeSelector = document.getElementById('multimeter-mode-selector');
+        const editorMultimeterMode = document.getElementById('editor-multimeter-mode');
+        const rotateButton = document.getElementById('rotate-component'); 
+
+        /** Displays the editor card, handling mode switching for Multimeter vs. standard components. */
+        function showComponentEditor(comp) {
+            selectedComponent = comp;
+            const def = ComponentTypes[comp.type];
+
+            // Filter out components that shouldn't open the editor at all
+            if (!def.editable && comp.type !== 'Multimeter' && comp.type !== 'MOSFET' && comp.type !== 'IC' && comp.type !== 'DigitalInput' && comp.type !== 'DigitalOutput' && comp.type !== 'VCC' && comp.type !== 'Ground' && comp.type !== 'Switch') {
+                 hideComponentEditor();
+                 return;
+            }
+            
+            // --- Rotation Button Visibility ---
+            // Allow rotation for 2+ node components where rotation is electrically meaningful.
+            if (def.nodes >= 2 && comp.type !== 'Switch' && comp.type !== 'LED' && comp.type !== 'Multimeter') {
+                 rotateButton.classList.remove('hidden');
+                 rotateButton.onclick = rotateComponent;
+            } else {
+                 rotateButton.classList.add('hidden');
+            }
+            
+            editorType.textContent = comp.type;
+            
+            // Logic for Multimeter (Mode selection)
+            if (comp.type === 'Multimeter') {
+                multimeterModeSelector.classList.remove('hidden');
+                editorValueLabel.classList.add('hidden');
+                editorMultimeterMode.value = comp.state.mode;
+
+                // Override save button for Multimeter mode saving
+                document.getElementById('save-component-value').onclick = () => {
+                    comp.state.mode = editorMultimeterMode.value;
+                    drawCircuit();
+                    hideComponentEditor();
+                    runSimulation(); // Recalculate measurement immediately
+                    callFriendAssistant(`User changed the Multimeter mode to ${comp.state.mode}.`);
+                };
+
+            } else if (def.editable) { // Standard editable components (Battery, Resistor, etc.)
+                multimeterModeSelector.classList.add('hidden');
+                editorValueLabel.classList.remove('hidden');
+
+                editorValueInput.value = comp.value;
+                editorUnit.textContent = def.unit;
+                editorValueInput.min = (comp.type === 'Battery') ? 0.1 : 0.01;
+                editorValueInput.step = (comp.type === 'Battery') ? 0.1 : 0.01;
+
+                // Restore standard save button handler
+                document.getElementById('save-component-value').onclick = saveComponentValue;
+            } else {
+                // For non-editable components (IC, MOSFET, Digital I/O), only show delete/rotate if applicable
+                multimeterModeSelector.classList.add('hidden');
+                editorValueLabel.classList.add('hidden');
+                
+                // Set save button to do nothing visible if value field is hidden
+                document.getElementById('save-component-value').onclick = () => hideComponentEditor();
+            }
+
+            editorCard.classList.remove('hidden');
+        }
+
+        /** Rotates the currently selected component by 90 degrees clockwise. */
+        function rotateComponent() {
+            if (!selectedComponent) return;
+
+            // Initialize rotation if not set
+            selectedComponent.rotation = selectedComponent.rotation || 0;
+            
+            // Increment rotation by 90 degrees
+            selectedComponent.rotation += 90;
+            if (selectedComponent.rotation >= 360) {
+                selectedComponent.rotation = 0;
+            }
+            
+            drawCircuit();
+            runSimulation(); // Recalculate simulation state after a change in physical layout
+            
+            const newAngle = selectedComponent.rotation;
+            callFriendAssistant(`User rotated the ${selectedComponent.type} to ${newAngle}° orientation.`, false);
+        }
+        
+        /** Hides the component editor card and deselects the component. */
+        function hideComponentEditor() {
+            selectedComponent = null;
+            editorCard.classList.add('hidden');
+            multimeterModeSelector.classList.add('hidden');
+            editorValueLabel.classList.remove('hidden');
+            rotateButton.classList.add('hidden'); // Hide rotate button on deselection
+            drawCircuit(); // Redraw to remove selection highlight
+        }
+        
+        /** Saves the new numerical value for a component. */
+        function saveComponentValue() {
+            if (!selectedComponent) return;
+
+            const newValue = parseFloat(editorValueInput.value);
+            if (isNaN(newValue) || newValue <= 0) {
+                showCustomAlert("Please enter a valid component value greater than zero.");
+                return;
+            }
+
+            selectedComponent.value = newValue;
+            drawCircuit();
+            hideComponentEditor();
+            runSimulation(); // Recalculate simulation after value change
+            callFriendAssistant(`User changed the value of the ${selectedComponent.type} to ${newValue}${ComponentTypes[selectedComponent.type].unit}.`);
+        }
+
+        document.getElementById('save-component-value').addEventListener('click', saveComponentValue);
+        document.getElementById('delete-component').addEventListener('click', () => {
+            if (!selectedComponent) return;
+            const compToDelete = selectedComponent;
+
+            showCustomConfirm(`Are you sure you want to delete the selected ${compToDelete.type}? This will also remove any attached wires.`, (confirmed) => {
+                if (confirmed) {
+                    // Remove component from the main array
+                    components = components.filter(c => c.id !== compToDelete.id);
+                    
+                    // Remove all wires connected to this component's ID
+                    components = components.filter(c => 
+                        c.type !== 'Wire' || (c.from.id !== compToDelete.id && c.to.id !== compToDelete.id)
+                    );
+
+                    drawCircuit();
+                    runSimulation();
+                    hideComponentEditor();
+                    callFriendAssistant(`User deleted the ${compToDelete.type}.`);
+                }
+            });
+        });
+
+        // --- Canvas Click Handler (Placing, Connecting, Selecting, Toggling) ---
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const gridCoords = getGridCoords(clickX, clickY);
+
+            // 1. Placing a new component
+            if (placingComponent) {
+                const newComp = {
+                    id: crypto.randomUUID(),
+                    type: placingComponent.type,
+                    value: placingComponent.value,
+                    x: gridCoords.x,
+                    y: gridCoords.y,
+                    rotation: 0, // Initialize rotation to 0 degrees
+                    connections: [] // Not strictly used but kept for schema completeness
+                };
+                
+                // Initialize specific states 
+                if (newComp.type === 'Switch') {
+                    newComp.state = { state: 'open' }; 
+                } else if (newComp.type === 'LED') {
+                     newComp.state = { state: 'off' };
+                } else if (newComp.type === 'Multimeter') {
+                     newComp.state = { mode: 'None', reading: 0 };
+                } else if (newComp.type === 'MOSFET') {
+                     newComp.state = { model: placingComponent.model, gateOn: false };
+                     newComp.value = placingComponent.model; 
+                } else if (newComp.type === 'IC') {
+                     newComp.state = { model: placingComponent.model };
+                     newComp.value = placingComponent.model;
+                } else if (newComp.type === 'DigitalInput') {
+                     newComp.state = { inputs: [...digitalInputs] }; // Capture current global input state
+                } else if (newComp.type === 'DigitalOutput') {
+                     newComp.state = { outputs: [...digitalOutputs] }; // Capture current global output state
+                }
+
+                components.push(newComp);
+                placingComponent = null;
+                document.body.style.cursor = 'default';
+                drawCircuit();
+                
+                // --- AI Assistant Trigger ---
+                if (newComp.type === 'IC') {
+                     // Trigger Teacher for IC component info
+                     const icInfo = IC_MODELS[newComp.value];
+                     callTeacherAssistant(newComp.type, newComp.value); 
+                } else if (newComp.type === 'MOSFET') {
+                     // Trigger Teacher for MOSFET info upon placement
+                     callTeacherAssistant(newComp.type, newComp.value); 
+                } else if (ComponentTypes[newComp.type].info) {
+                     // Trigger Teacher for generic component info upon placement
+                     callTeacherAssistant(newComp.type, newComp.type); 
+                }
+                
+                // Trigger Friend for next step guidance
+                callFriendAssistant("User placed a " + newComp.type);
+                
+                return;
+            }
+
+            // 2. Connecting nodes (Click on a red/green node)
+            const clickedNode = findNode(clickX, clickY);
+            if (clickedNode) {
+                hideComponentEditor(); 
+                if (!connectingNode) {
+                    // START connection sequence
+                    connectingNode = clickedNode;
+                    drawCircuit(); 
+                    return;
+                } else if (connectingNode.id !== clickedNode.id || connectingNode.node !== clickedNode.node) {
+                    // END connection sequence (connected to a different node)
+                    
+                    const isDuplicate = components.some(c => 
+                        c.type === 'Wire' && (
+                            (c.from.id === connectingNode.id && c.from.node === connectingNode.node && c.to.id === clickedNode.id && c.to.node === clickedNode.node) ||
+                            (c.to.id === connectingNode.id && c.to.node === connectingNode.node && c.from.id === clickedNode.id && c.from.node === clickedNode.node)
+                        )
+                    );
+
+                    if (isDuplicate) {
+                         showCustomAlert("A wire already exists between these two points.");
+                         connectingNode = null;
+                         drawCircuit();
+                         return;
+                    }
+
+                    // Create and store the new wire object
+                    const wire = {
+                        id: crypto.randomUUID(),
+                        type: 'Wire',
+                        from: { id: connectingNode.id, node: connectingNode.node },
+                        to: { id: clickedNode.id, node: clickedNode.node },
+                        x: 0, y: 0 
+                    };
+                    
+                    components.push(wire);
+
+                    connectingNode = null;
+                    drawCircuit();
+                    runSimulation(); 
+
+                    callFriendAssistant(`User connected two components.`);
+                    return;
+                }
+            }
+
+            // 3. Component Interaction (Selection or Toggling)
+            const clickedComp = findComponent(clickX, clickY);
+            if (clickedComp) {
+                if (clickedComp.type === 'Switch') {
+                    clickedComp.state.state = clickedComp.state.state === 'open' ? 'closed' : 'open';
+                    drawCircuit();
+                    runSimulation(); 
+                    callFriendAssistant(`User toggled the ${clickedComp.type} to ${clickedComp.state.state}.`);
+                    return; 
+                } 
+                
+                if (clickedComp.type === 'MOSFET') {
+                    // Trigger Teacher for concept explanation when user clicks the MOSFET symbol
+                    callTeacherAssistant(clickedComp.type, clickedComp.value);
+                    
+                    showCustomAlert("MOSFET state is now controlled by the Gate terminal (G, Node 2) connection.");
+                    return; 
+                }
+                
+                // Show editor for all components (including IC, MOSFET, Digital I/O for rotation/delete)
+                showComponentEditor(clickedComp);
+                return;
+            } 
+            
+            // 4. Wire deletion (Click on a wire segment)
+            const clickedWire = findWire(clickX, clickY);
+            if (clickedWire) {
+                hideComponentEditor(); 
+                showCustomConfirm("Do you want to delete this wire connection?", (confirmed) => {
+                    if (confirmed) {
+                        components = components.filter(c => c.id !== clickedWire.id);
+                        drawCircuit();
+                        runSimulation();
+                        callFriendAssistant("User deleted a wire connection.");
+                    }
+                });
+                return;
+            }
+
+            // 5. Deselection / Cancel connection
+            hideComponentEditor(); 
+            if (connectingNode && !clickedNode) {
+                connectingNode = null; // Cancel connection sequence
+                drawCircuit();
+            }
+        });
+
+        // --- Digital I/O Logic ---
+
+        /** Initializes the 8 input buttons and 8 output indicators. */
+        function initializeDigitalIO() {
+            const inputContainer = document.getElementById('digital-inputs-container');
+            const outputContainer = document.getElementById('digital-outputs-container');
+            
+            // Clear existing elements
+            inputContainer.innerHTML = '';
+            outputContainer.innerHTML = '';
+
+            // Generate Input Buttons (0-7)
+            for (let i = 0; i < NUM_DIGITAL_IO; i++) {
+                const btn = document.createElement('button');
+                btn.id = `input-${i}`;
+                btn.dataset.index = i;
+                btn.className = `input-button p-2 rounded-lg font-mono text-xs shadow transition duration-100 ease-in-out`;
+                btn.onclick = toggleDigitalInput;
+                inputContainer.appendChild(btn);
+            }
+
+            // Generate Output Indicators (0-7)
+            for (let i = 0; i < NUM_DIGITAL_IO; i++) {
+                const div = document.createElement('div');
+                div.id = `output-${i}`;
+                div.className = `io-indicator`;
+                outputContainer.appendChild(div);
+            }
+            
+            updateDigitalIOUI();
+        }
+
+        /** Toggles the state of a specific digital input and updates the UI. */
+        function toggleDigitalInput(event) {
+            const index = parseInt(event.currentTarget.dataset.index);
+            digitalInputs[index] = 1 - digitalInputs[index]; // Toggle 0 <-> 1
+            
+            // Update the state of all placed DigitalInput components
+            components.filter(c => c.type === 'DigitalInput').forEach(comp => {
+                comp.state.inputs[index] = digitalInputs[index];
+            });
+
+            updateDigitalIOUI();
+            
+            // Re-run simulation to update outputs
+            runSimulation(); 
+        }
+        
+        /** Updates the visual appearance of all digital I/O elements. */
+        function updateDigitalIOUI() {
+            // Update Inputs
+            digitalInputs.forEach((state, i) => {
+                const btn = document.getElementById(`input-${i}`);
+                if (btn) {
+                    const level = state === 1 ? 'H' : 'L';
+                    const colorClass = state === 1 ? 'bg-high-signal text-white hover:bg-green-700' : 'bg-low-signal text-gray-800 hover:bg-red-400';
+                    btn.textContent = `IN ${i}: ${level}`;
+                    btn.className = `input-button p-2 rounded-lg font-mono text-xs shadow transition duration-100 ease-in-out ${colorClass}`;
+                }
+            });
+
+            // Update Outputs
+            digitalOutputs.forEach((state, i) => {
+                const div = document.getElementById(`output-${i}`);
+                if (div) {
+                    const level = state === 1 ? 'HIGH' : 'LOW';
+                    const colorClass = state === 1 ? 'bg-high-signal' : 'bg-low-signal';
+                    div.textContent = `OUT ${i}: ${level}`;
+                    div.className = `io-indicator ${colorClass}`;
+                }
+            });
+        }
+
+
+        // --- Topology Helper: Union-Find for identifying electrical nets ---
+        
+        /** Performs a depth-first search (DFS) to find all interconnected nodes (a net). */
+        function findNet(startCompId, startNodeId) {
+            const queue = [{ id: startCompId, node: startNodeId }];
+            const net = [];
+            const visited = new Set();
+            
+            // Helper to create a unique key for visited nodes
+            const getKey = (id, node) => `${id}:${node}`;
+
+            while (queue.length > 0) {
+                const current = queue.shift();
+                const key = getKey(current.id, current.node);
+
+                if (visited.has(key)) continue;
+                visited.add(key);
+                net.push(current);
+
+                // Find all wires connected to the current node
+                // CRITICAL FIX: Ensure c.from and c.to exist before checking node properties
+                const connectingWires = components.filter(c => c.type === 'Wire' && c.from && c.to && (
+                    (c.from.id === current.id && c.from.node === current.node) ||
+                    (c.to.id === current.id && c.to.node === current.node)
+                ));
+
+                // Traverse through connected nodes
+                for (const wire of connectingWires) {
+                    let nextCompId, nextNodeId;
+
+                    if (wire.from.id === current.id && wire.from.node === current.node) {
+                        // Current node is 'from', next is 'to'
+                        nextCompId = wire.to.id;
+                        nextNodeId = wire.to.node;
+                    } else {
+                        // Current node is 'to', next is 'from'
+                        nextCompId = wire.from.id;
+                        nextNodeId = wire.from.node;
+                    }
+
+                    const nextKey = getKey(nextCompId, nextNodeId);
+                    if (!visited.has(nextKey)) {
+                        queue.push({ id: nextCompId, node: nextNodeId });
+                    }
+                }
+            }
+            return net;
+        }
+
+
+        /** Identifies all distinct electrical nets in the circuit. */
+        function calculateNets() {
+            const netMap = new Map(); // Maps component-node key to net ID
+            let nextNetId = 0;
+            
+            // Helper to get key: "compID:nodeID"
+            const getKey = (id, node) => `${id}:${node}`;
+
+            for (const comp of components) {
+                if (comp.type === 'Wire') continue;
+
+                const def = ComponentTypes[comp.type];
+                for (let i = 0; i < def.nodes; i++) {
+                    const key = getKey(comp.id, i);
+
+                    // If this node hasn't been assigned to a net, start a new DFS
+                    if (!netMap.has(key)) {
+                        const net = findNet(comp.id, i);
+                        const netId = nextNetId++;
+                        
+                        for (const { id, node } of net) {
+                            netMap.set(getKey(id, node), netId);
+                        }
+                    }
+                }
+            }
+            return netMap;
+        }
+
+
+        // --- Simulation Logic ---
+
+        /** Conceptual simulation logic for the Digital Logic mode (NEW) */
+        function runDigitalSimulation() {
+            const placedIC = components.find(c => c.type === 'IC');
+            const digitalInputComp = components.find(c => c.type === 'DigitalInput');
+            const digitalOutputComp = components.find(c => c.type === 'DigitalOutput');
+            const statusElement = document.getElementById('simulation-status');
+            
+            // Reset outputs based on current global state
+            let newOutputs = [...digitalOutputs];
+            
+            statusElement.className = 'text-success-green font-bold';
+            statusElement.textContent = `Status: Digital simulation running.`;
+
+            // --- 1. Client-side Direct Signal Pass-through (Input -> Output) ---
+            
+            if (digitalInputComp && digitalOutputComp) {
+                // Find all wires connecting Digital Input pins to Digital Output pins
+                const directWires = components.filter(w => w.type === 'Wire').filter(w => {
+                    const fromComp = components.find(c => c.id === w.from.id);
+                    const toComp = components.find(c => c.id === w.to.id);
+                    // Check for Input -> Output connection
+                    return (fromComp && fromComp.type === 'DigitalInput' && toComp && toComp.type === 'DigitalOutput');
+                });
+                
+                directWires.forEach(w => {
+                    const inputNode = w.from.node;
+                    const outputNode = w.to.node;
+                    
+                    // Signal passes directly from input pin to output pin
+                    const signal = digitalInputs[inputNode];
+                    newOutputs[outputNode] = signal;
+                });
+            }
+
+            // --- 2. AI Logic Check (For IC analysis) ---
+            
+            // Check required components for the IC experiment
+            if (!placedIC || !digitalInputComp || !digitalOutputComp) {
+                statusElement.className = 'text-warning-red font-bold';
+                statusElement.textContent = 'Status: Place IC, Digital Input, and Digital Output components.';
+                // Update outputs based on direct wires, then stop.
+                digitalOutputs = newOutputs;
+                updateDigitalIOUI();
+                return;
+            }
+
+            // 3. Inform the AI of the topology and state
+            const currentIC = placedIC.value;
+            
+            // AI Guidance Prompt logic requires topology and state
+            const topology = {
+                IC: placedIC.value,
+                InputState: digitalInputs.join(''),
+                Wiring: components.filter(c => c.type === 'Wire').map(w => {
+                    const fromComp = components.find(c => c.id === w.from.id);
+                    const toComp = components.find(c => c.id === w.to.id);
+                    if (!fromComp || !toComp) return 'Invalid Wire';
+                    
+                    const mapNodeToLabel = (comp, node) => {
+                        if (comp.type === 'IC') {
+                             // Maps Node 0->Pin 1, Node 6->Pin 7, Node 7->Pin 14, Node 13->Pin 8
+                             const pinNum = (node >= 7) ? (14 - (node - 7)) : (node + 1); 
+                             return `IC-P${pinNum}`;
+                        } else if (comp.type === 'DigitalInput') {
+                             return `IN-${node}`;
+                        } else if (comp.type === 'DigitalOutput') {
+                             return `OUT-${node}`;
+                        }
+                        return `${comp.type}-N${node}`;
+                    };
+
+                    return `${mapNodeToLabel(fromComp, w.from.node)} <-> ${mapNodeToLabel(toComp, w.to.node)}`;
+                }).join('; ')
+            };
+
+            // Call Friend Assistant for conceptual output guidance
+            callFriendAssistant(`Digital simulation started. IC: ${currentIC}. Topology: ${JSON.stringify(topology)}.`, 3); // Default frustration 3 for simulation call
+            
+            // Note: The global digitalOutputs array will be updated inside callFriendAssistant() 
+            // after parsing the AI's textual response about the IC's output state.
+        }
+
+        /** Runs the DC circuit simulation based on Ohm's Law and component states. */
+        function runSimulation() {
+            // If in Digital Logic mode, skip complex DC calculations and run conceptual update
+            if (currentExperimentKey === 'DIGITAL_LOGIC') {
+                runDigitalSimulation();
+                return;
+            }
+
+            // --- Standard DC Simulation Logic ---
+            
+            // Recalculate nets
+            const netMap = calculateNets();
+            const battery = components.find(c => c.type === 'Battery');
+            const mosfets = components.filter(c => c.type === 'MOSFET');
+            const leds = components.filter(c => c.type === 'LED');
+            const multimeters = components.filter(c => c.type === 'Multimeter');
+            const switches = components.filter(c => c.type === 'Switch');
+            // ICs, Digital, and Rails are inert for DC loop analysis
+            const circuitComponents = components.filter(c => c.type !== 'Wire' && c.type !== 'Multimeter' && c.type !== 'VCC' && c.type !== 'Ground' && c.type !== 'IC' && c.type !== 'DigitalInput' && c.type !== 'DigitalOutput');
+            
+            const statusElement = document.getElementById('simulation-status');
+            const multimeterOutput = document.getElementById('multimeter-reading-output');
+
+            // --- Reset Outputs and States ---
+            document.getElementById('output-v').textContent = '0V';
+            document.getElementById('output-r').textContent = '0Ω';
+            document.getElementById('output-i').textContent = '0A';
+            multimeterOutput.textContent = 'Multimeter Reading: --';
+            multimeters.forEach(m => m.state.reading = 0);
+            statusElement.className = 'text-warning-red font-bold';
+            statusElement.textContent = 'Status: Open Circuit / Not Running';
+            leds.forEach(led => led.state.state = 'off');
+
+            if (!battery) {
+                statusElement.textContent = 'Status: No Power Source (Battery) in Circuit!';
+                drawCircuit();
+                return;
+            }
+            
+            // ... (MOSFET Control logic) ...
+            const isConnectedToVCC = (compId, nodeIndex) => {
+                const nodeNet = netMap.get(`${compId}:${nodeIndex}`);
+                if (nodeNet === undefined) return false;
+                for (const comp of components) {
+                    if (comp.type === 'VCC' && netMap.get(`${comp.id}:0`) === nodeNet) return true;
+                    if (comp.type === 'Battery' && netMap.get(`${comp.id}:1`) === nodeNet) return true;
+                }
+                return false;
+            };
+
+            const isConnectedToGND = (compId, nodeIndex) => {
+                const nodeNet = netMap.get(`${compId}:${nodeIndex}`);
+                if (nodeNet === undefined) return false;
+                for (const comp of components) {
+                    if (comp.type === 'Ground' && netMap.get(`${comp.id}:0`) === nodeNet) return true;
+                    if (comp.type === 'Battery' && netMap.get(`${comp.id}:0`) === nodeNet) return true;
+                }
+                return false;
+            };
+
+            mosfets.forEach(mosfet => {
+                const gateConnectedVCC = isConnectedToVCC(mosfet.id, 2);
+                const sourceConnectedGND = isConnectedToGND(mosfet.id, 1);
+                
+                if (gateConnectedVCC && sourceConnectedGND) {
+                    mosfet.state.gateOn = true;
+                } else if (isConnectedToGND(mosfet.id, 2)) {
+                    mosfet.state.gateOn = false;
+                } else {
+                    mosfet.state.gateOn = false; 
+                }
+            });
+
+
+            const openSwitch = switches.find(c => c.state.state === 'open');
+            if (openSwitch) {
+                statusElement.textContent = 'Status: Open Circuit - Switch is OPEN!';
+                drawCircuit();
+                return;
+            }
+            const offMosfet = mosfets.find(c => c.state.gateOn === false);
+            if (offMosfet) {
+                 statusElement.textContent = `Status: Open Circuit - MOSFET (${offMosfet.state.model}) is OFF (Gate must be HIGH and Source LOW)!`;
+                 drawCircuit();
+                 return;
+            }
+            
+            // (Circuit connectivity and Ohm's Law calculation logic)
+
+            const isClosedCircuit = circuitComponents.every(comp => {
+                const def = ComponentTypes[comp.type];
+                if (def.nodes > 0) {
+                     // CRITICAL FIX: Add c.from && c.to check inside the some filter
+                     const node0Connected = components.some(c => c.type === 'Wire' && c.from && c.to && (c.from.id === comp.id && c.from.node === 0 || c.to.id === comp.id && c.to.node === 0));
+                     let node1Connected = false;
+                     if (def.nodes >= 2) {
+                         // CRITICAL FIX: Add c.from && c.to check inside the some filter
+                         node1Connected = components.some(c => c.type === 'Wire' && c.from && c.to && (c.from.id === comp.id && c.from.node === 1 || c.to.id === comp.id && c.to.node === 1));
+                     }
+                     return node0Connected && (def.nodes === 1 || node1Connected);
+                }
+                return true;
+            });
+
+            if (!isClosedCircuit || circuitComponents.length === 0) {
+                 statusElement.textContent = 'Status: Open Circuit - Core Components Not Fully Connected!';
+                 drawCircuit();
+                 return;
+            }
+            
+            const V_source = battery.value;
+            let R_total_load = circuitComponents
+                .filter(c => c.type !== 'Battery' && ComponentTypes[c.type].R_equiv)
+                .reduce((sum, comp) => {
+                    if (comp.type === 'MOSFET' && comp.state.gateOn) {
+                        return sum + ComponentTypes.MOSFET.R_equiv();
+                    }
+                    return sum + comp.value;
+                }, 0);
+            
+            if (R_total_load === Infinity || R_total_load === 0) {
+                 statusElement.textContent = R_total_load === Infinity ? 'Status: Open Circuit (Infinite Resistance)!' : 'Status: Short Circuit (R=0)!';
+                 drawCircuit();
+                 return;
+            }
+
+            const V_led_drop = leds.reduce((sum, led) => sum + led.value, 0);
+            let I = 0;
+            let V_effective = V_source - V_led_drop;
+            
+            if (V_effective > 0 && R_total_load > 0) {
+                I = V_effective / R_total_load; 
+            }
+
+            // --- Update Simulation Output and LED States ---
+            document.getElementById('output-v').textContent = `${V_source.toFixed(2)}V`;
+            document.getElementById('output-r').textContent = `${R_total_load.toFixed(2)}Ω`;
+            document.getElementById('output-i').textContent = `${I.toFixed(4)}A`;
+            
+            if (I > 0.001) { 
+                statusElement.className = 'text-success-green font-bold';
+                statusElement.textContent = `Status: Running. Current: ${I.toFixed(4)}A`;
+                leds.forEach(led => led.state.state = 'on');
+            } else {
+                statusElement.className = 'text-warning-red font-bold';
+                statusElement.textContent = `Status: Current too low or voltage drop too high (I=${I.toFixed(4)}A)`;
+            }
+
+            // ... (Multimeter logic) ...
+
+            let maxMeterReading = 0;
+            let maxMeterUnit = '';
+            let isMeterUsed = false;
+
+            multimeters.forEach(meter => {
+                const meterConnections = components.filter(w => w.type === 'Wire' && (w.from.id === meter.id || w.to.id === meter.id));
+                
+                if (meter.state.mode === 'A') {
+                    meter.state.reading = (I > 0.001) ? I : 0;
+                    maxMeterReading = Math.max(maxMeterReading, meter.state.reading);
+                    maxMeterUnit = 'A';
+                    isMeterUsed = true;
+                } 
+                else if (meter.state.mode === 'V') {
+                    if (meterConnections.length === 2) {
+                        const connectedComponentId = meterConnections
+                            .map(c => c.from.id === meter.id ? c.to.id : c.from.id)
+                            .find((id, index, self) => self.indexOf(id) === index && id !== meter.id);
+                        
+                        const connectedComponent = components.find(c => c.id === connectedComponentId);
+
+                        if (connectedComponent) {
+                            let V_comp = 0;
+                            if (connectedComponent.type === 'Battery') {
+                                V_comp = connectedComponent.value; 
+                            } else if (connectedComponent.type === 'LED') {
+                                V_comp = connectedComponent.value; 
+                            } else if (ComponentTypes[connectedComponent.type].R_equiv) {
+                                const R_comp = ComponentTypes[connectedComponent.type].R_equiv(connectedComponent.value);
+                                if (R_comp !== Infinity) {
+                                    V_comp = I * R_comp;
+                                }
+                            }
+                            meter.state.reading = V_comp;
+                            maxMeterReading = Math.max(maxMeterReading, meter.state.reading);
+                            maxMeterUnit = 'V';
+                            isMeterUsed = true;
+                        } else {
+                             meter.state.reading = '--';
+                        }
+                    } else {
+                         meter.state.reading = '--';
+                    }
+                }
+            });
+
+            multimeterOutput.textContent = isMeterUsed ? `MULTIMETER: ${maxMeterReading.toFixed(3)}${maxMeterUnit}` : 'MULTIMETER: --';
+
+            drawCircuit(); 
+            
+            if (lastAction !== "Application started.") {
+                callFriendAssistant("User ran the simulation with the current circuit connected.", 3); // Default frustration 3 for simulation
+            }
+        }
+
+        // --- Core Application Functions ---
+        
+        /** Resets the entire circuit and simulation state. */
+        function resetCircuit() {
+            components = [];
+            placingComponent = null;
+            selectedComponent = null;
+            connectingNode = null;
+            // Reset Digital I/O state
+            digitalInputs = Array(NUM_DIGITAL_IO).fill(0);
+            digitalOutputs = Array(NUM_DIGITAL_IO).fill(0);
+            updateDigitalIOUI();
+            
+            drawCircuit();
+            runSimulation(); // This will reset outputs to 0 and call drawCircuit again
+            hideComponentEditor();
+            callFriendAssistant(`Circuit was reset for the ${EXPERIMENTS[currentExperimentKey].name} experiment.`, 1); // Low frustration on reset
+        }
+
+        /** Updates the UI and internal state based on the selected experiment. */
+        function updateExperiment(key) {
+            currentExperimentKey = key;
+            const exp = EXPERIMENTS[key];
+            currentGoalText = exp.goal;
+            document.getElementById('experiment-title').textContent = `Experiment: ${exp.name}`;
+            document.getElementById('experiment-goal-text').textContent = exp.goal;
+            
+            // --- Conditional Panel Visibility Logic (NEW) ---
+            const analogPanel = document.getElementById('simulation-results-card');
+            const digitalPanel = document.getElementById('digital-interface-panel');
+            
+            if (key === 'DIGITAL_LOGIC') {
+                analogPanel.classList.add('hidden');
+                digitalPanel.classList.remove('hidden');
+            } else {
+                analogPanel.classList.remove('hidden');
+                digitalPanel.classList.add('hidden');
+            }
+            // ------------------------------------------------
+            
+            // Reset the circuit when the experiment changes
+            if (components.length > 0) {
+                 showCustomConfirm(`Do you want to clear the canvas and start the new experiment: ${exp.name}?`, (confirmed) => {
+                    if (confirmed) {
+                        resetCircuit();
+                        // Trigger Teacher Assistant for experiment overview after reset
+                        callTeacherAssistant('Experiment_Overview', exp.name);
+                    } else {
+                        // If they cancel, keep the UI updated but don't reset components
+                        callFriendAssistant(`User switched to ${exp.name} but kept existing components.`, 1);
+                    }
+                 });
+            } else {
+                // If canvas is already empty, just update AI context
+                resetCircuit();
+                // Trigger Teacher Assistant for experiment overview
+                callTeacherAssistant('Experiment_Overview', exp.name);
+            }
+        }
+
+
+        // --- AI Tutor / LLM Functionality (Dual Assistant) ---
+
+        /**
+         * Generic API Caller helper function with retry logic.
+         * @param {string} systemPrompt - Instructions for the model's persona and task.
+         * @param {object} payload - The complete API payload object.
+         * @param {string} responseAreaId - ID of the HTML element to display the response.
+         * @param {string} loadingIndicatorId - ID of the HTML element for the loading spinner.
+         * @returns {Promise<string>} The raw text response.
+         */
+        async function genericAPICaller(systemPrompt, payload, responseAreaId, loadingIndicatorId) {
+            const loadingIndicator = document.getElementById(loadingIndicatorId);
+            const responseArea = document.getElementById(responseAreaId);
+            loadingIndicator.classList.remove('hidden');
+            
+            // Inject system instruction into payload
+            payload.systemInstruction = { parts: [{ text: systemPrompt }] };
+            
+            const MAX_RETRIES = 5;
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                try {
+                    const response = await fetch("https://my-proxy-kqdgkoiu2-rasiks-projects-7c6364c8.vercel.app", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.status === 429 && attempt < MAX_RETRIES - 1) {
+                        const delay = Math.pow(2, attempt) * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+                    if (!candidate) throw new Error("No candidate response from API.");
+
+                    const text = candidate.content?.parts?.[0]?.text || "I'm sorry, I couldn't get guidance this time. Please try again.";
+                    
+                    // Display response for non-JSON formatted text
+                    if (!candidate.content?.parts?.[0]?.mimeType || candidate.content.parts[0].mimeType !== "application/json") {
+                        responseArea.innerHTML = `<p class="chat-bubble text-gray-700 text-sm">${text}</p>`;
+                        responseArea.scrollTop = responseArea.scrollHeight;
+                    }
+                    
+                    loadingIndicator.classList.add('hidden');
+                    return text; // Return the raw text
+                } catch (error) {
+                    console.error("Gemini API Error:", error);
+                    if (attempt === MAX_RETRIES - 1) {
+                        responseArea.innerHTML = `<p class="chat-bubble text-warning-red text-sm">Error connecting to the Assistant after multiple retries. (${error.message})</p>`;
+                    }
+                    const delay = Math.pow(2, attempt) * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            loadingIndicator.classList.add('hidden');
+            return "API_ERROR";
+        }
+
+        /**
+         * Teacher Assistant: Explains concepts, components, and theoretical background.
+         * @param {string} subjectType - The component type or the string 'Experiment_Overview'.
+         * @param {string} subjectValue - The component value (e.g., '74LS00') or the experiment name.
+         */
+        async function callTeacherAssistant(subjectType, subjectValue) {
+            const systemPrompt = `You are 'Teacher Assistant', a knowledgeable and friendly professor. Your goal is to explain circuit theory, component data, and conceptual physics clearly. Your responses must be structured, conversational, and informative. **DO NOT give step-by-step circuit assembly instructions or troubleshooting advice.**`;
+            
+            let userQuery;
+            let componentInfo = subjectValue;
+
+            if (subjectType === 'Experiment_Overview') {
+                const expName = subjectValue;
+                userQuery = `The user selected a new experiment: ${expName}. Explain the main goal and conceptual significance of this experiment in a concise, informative paragraph.`;
+            } else {
+                 // Component Information
+                 const compDef = ComponentTypes[subjectType];
+                 if (subjectType === 'IC') {
+                      componentInfo = IC_MODELS[subjectValue] ? `${subjectValue} (${IC_MODELS[subjectValue].name}): ${IC_MODELS[subjectValue].desc}` : 'Unknown IC';
+                      userQuery = `The user is learning about the IC model ${subjectValue}. Explain its full name, its core function in digital circuits, and its typical use in a small, informative paragraph.`;
+                 } else if (subjectType === 'MOSFET') {
+                      userQuery = `The user clicked on a MOSFET. Explain the three terminals (Gate, Drain, Source) and the principle of Vgs control (how the Gate voltage controls the Drain-Source current) in a concise, educational paragraph.`;
+                 } else {
+                      componentInfo = compDef ? compDef.info : `Information not found for component type ${subjectType}.`;
+                      userQuery = `The user is learning about the component: ${subjectType}. Explain its function (what it does to voltage/current) and its standard schematic purpose. Use this data: ${componentInfo}`;
+                 }
+            }
+            
+            const payload = { contents: [{ parts: [{ text: userQuery }] }] };
+
+            // Call the generic caller for the Teacher Assistant
+            genericAPICaller(systemPrompt, payload, 'teacher-response-area', 'teacher-loading-indicator');
+        }
+
+        /**
+         * Friend Assistant: Provides real-time, step-by-step guidance and feedback. (Core logic)
+         * @param {string} action - The last action performed by the user (or transcribed speech query).
+         * @param {number} [frustrationLevel=3] - User's perceived frustration level (1=Calm, 10=Frustrated).
+         */
+        async function callFriendAssistant(action, frustrationLevel = 3) {
+            lastAction = action; 
+            
+            // 1. Prepare Circuit State Context
+            const simpleCircuitState = components
+                .filter(c => c.type !== 'Wire')
+                .map(c => ({
+                    id: c.id, type: c.type, value: c.value, nodes: ComponentTypes[c.type].nodes, rotation: c.rotation || 0,
+                    node0Connected: components.some(w => w.type === 'Wire' && w.from && w.to && (w.from.id === c.id && w.from.node === 0 || w.to.id === c.id && w.to.node === 0)),
+                    node1Connected: components.some(w => w.type === 'Wire' && w.from && w.to && (w.from.id === c.id && w.from.node === 1 || w.to.id === c.id && w.to.node === 1)),
+                    node2Connected: c.type === 'MOSFET' ? components.some(w => w.type === 'Wire' && w.from && w.to && (w.from.id === c.id && w.from.node === 2 || w.to.id === c.id && w.to.node === 2)) : false,
+                    state: c.state ? JSON.stringify(c.state) : 'N/A' 
+                }));
+
+            const circuitContext = JSON.stringify(simpleCircuitState, null, 2);
+            const inputStateString = digitalInputs.join('');
+            
+            // 2. Adjust Guidance based on Frustration Level
+            let guidanceTone;
+            if (frustrationLevel >= 7) {
+                guidanceTone = "Your student is highly frustrated or asking a specific question (Level 7+). Provide DETAILED, COMPLETE answers. If it's a question, answer it thoroughly with explanations, formulas, examples, and calculations. If it's circuit guidance, provide the ABSOLUTE SIMPLEST, one-step instruction with clear reasoning (e.g., 'Place the Resistor first because...' or 'Connect Node 0 to Node 1 to complete...'). Be direct and educational.";
+            } else if (frustrationLevel >= 5) {
+                guidanceTone = "Your student is slightly frustrated (Level 5-6). Provide clear, concise explanations with two-step guidance or gentle correction. Use encouraging language and explain WHY each step matters.";
+            } else {
+                guidanceTone = "Your student is calm (Level 1-4). Provide concise, effective, 1-2 sentence guidance for the next logical step with brief reasoning.";
+            }
+            
+            // 3. Define the System Prompt
+            // Detect if this is a direct question vs general action
+            const isDirectQuestion = action.includes('typed a specific question') || action.includes('User spoke');
+            
+            const systemPrompt = `You are 'Friend Assistant', a responsive and patient real-time tutor.
+Current Experiment Goal: ${currentGoalText}.
+Digital Inputs: ${inputStateString}.
+
+**YOUR RESPONSE MODE:**
+${isDirectQuestion ? 
+`The user asked a SPECIFIC QUESTION or DOUBT. Your job is to:
+1. DIRECTLY ANSWER their question with clear explanation
+2. Provide relevant circuit theory, formulas, or concepts if needed
+3. Give examples or calculations to clarify
+4. If they're stuck on an error, explain WHY it's wrong and HOW to fix it
+5. Be educational and thorough - SOLVE their doubt completely
+${guidanceTone}` 
+: 
+`The user performed an action in the circuit. Your job is to:
+1. Provide concise guidance for the next step toward the experiment goal
+2. Check component presence and wiring topology
+3. Point out errors if present
+${guidanceTone}`}
+
+**CRITICAL LOGIC CHECKLIST:**
+1.  **Component Presence:** Are all required components for the experiment goal present?
+2.  **Topology Check:** Analyze the JSON Wiring. Identify any unconnected or incorrectly connected pins.
+3.  **Digital Synthesis (If applicable):** If in DIGITAL_LOGIC mode, calculate the conceptual output signals (0 or 1) based on the placed IC's function and the current InputState (${inputStateString}). State the output (e.g., 'Output 0 is 1').
+
+Component Naming Convention: MOSFET (Drain=D=Node 0, Source=S=Node 1, Gate=G=Node 2). Battery (Node 0=Negative, Node 1=Positive). IC Pins are P1 to P14. Digital I/O pins are IN-0 to IN-7 / OUT-0 to OUT-7.
+
+Format: Respond in plain text, without markdown, bolding, or lists.`;
+
+            const userQuery = `Current Circuit State (Components/Connections):\n${circuitContext}\n\nLast User Action: ${action}.`;
+            
+            const payload = { contents: [{ parts: [{ text: userQuery }] }] };
+
+            // 4. Call the generic caller for the Friend Assistant
+            const text = await genericAPICaller(systemPrompt, payload, 'friend-response-area', 'friend-loading-indicator');
+            
+            // --- Digital Output Parsing (Conceptual) ---
+            if (currentExperimentKey === 'DIGITAL_LOGIC' && text !== "API_ERROR" && text.includes('Output')) {
+                const newOutputs = [...digitalOutputs]; 
+                
+                // Regex to find "Output X is Y (Z)" or similar, looking for the state (0 or 1)
+                const outputRegex = /Output\s+([0-7])\s+(?:is|will\s+be)\s+.*?(0|1)/gi;
+                let match;
+                while ((match = outputRegex.exec(text)) !== null) {
+                    const index = parseInt(match[1]);
+                    const state = parseInt(match[2]);
+                    if (index >= 0 && index < NUM_DIGITAL_IO) {
+                        newOutputs[index] = state;
+                    }
+                }
+                
+                // Update the global state and UI only if changes were parsed
+                if (newOutputs.join('') !== digitalOutputs.join('')) {
+                    digitalOutputs = newOutputs;
+                    components.filter(c => c.type === 'DigitalOutput').forEach(comp => {
+                       comp.state.outputs = digitalOutputs;
+                    });
+                    updateDigitalIOUI();
+                }
+            }
+            // --- End Digital Output Parsing ---
+        }
+        
+        /** New function to handle typed text queries */
+        function handleTextQuery() {
+            const inputField = document.getElementById('friend-text-query');
+            const query = inputField.value.trim();
+
+            if (query === "") {
+                showCustomAlert("Please type your question or problem before sending.");
+                return;
+            }
+
+            // Clear input field immediately
+            inputField.value = '';
+
+            // Send query to the Friend Assistant. Use frustration level of 8 for specific questions
+            // to trigger detailed, thorough explanations instead of just brief guidance.
+            callFriendAssistant(`User typed a specific question/problem: "${query}"`, 8);
+        }
+
+        // --- VTT and Sentiment Analysis Logic ---
+        
+        /** Initiates the Web Speech API recognition process. */
+        function startVoiceChat() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const btn = document.getElementById('start-voice-chat-btn');
+            const transcribedOutput = document.getElementById('transcribed-text-output');
+            
+            if (!SpeechRecognition) {
+                showCustomAlert("Voice recognition is not supported in this browser (use Chrome or Edge).");
+                return;
+            }
+            
+            // Stop any previous instance
+            if (speechRecognition) {
+                speechRecognition.stop();
+            }
+
+            const recognition = new SpeechRecognition(); // Local declaration for handler access
+            speechRecognition = recognition;
+            
+            recognition.continuous = false; // Only get one result
+            recognition.lang = 'en-US';
+            
+            // VISUAL FEEDBACK
+            transcribedOutput.textContent = "Waiting for microphone...";
+            transcribedOutput.classList.remove('hidden');
+            btn.classList.replace('bg-red-400', 'bg-warning-red');
+
+            recognition.onaudiostart = () => {
+                btn.textContent = "🔊 Recording...";
+                transcribedOutput.textContent = "Listening...";
+            };
+            
+            recognition.onresult = (event) => {
+                const voiceQuery = event.results[0][0].transcript;
+                
+                // Display the final, successful transcription
+                transcribedOutput.textContent = `Query Transcribed: "${voiceQuery}"`;
+                
+                analyzeVoiceInput(voiceQuery);
+                // Reset is handled by onend/onerror
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech Recognition Error:', event.error);
+                let message;
+                if (event.error === 'no-speech') {
+                    message = "No speech detected. Please check your microphone and speak clearly.";
+                } else if (event.error === 'not-allowed') {
+                    message = "Microphone permission denied. Check your browser settings.";
+                } else {
+                    message = `Voice input failed. Error: ${event.error}. Note: HTTPS is required.`;
+                }
+                
+                btn.textContent = "🎙️ Error/Timeout";
+                btn.classList.replace('bg-warning-red', 'bg-red-400');
+                transcribedOutput.textContent = `VTT Error: ${event.error}`;
+                showCustomAlert(message);
+            };
+            
+            recognition.onend = () => {
+                 // Ensure button resets after recognition session ends
+                 btn.textContent = "🎙️ START VOICE CHAT";
+                 btn.classList.replace('bg-warning-red', 'bg-red-400');
+            };
+
+            try {
+                recognition.start();
+            } catch (e) {
+                if (e.name === 'InvalidStateError') {
+                     showCustomAlert("Voice recognition already active. Please wait or try again.");
+                } else {
+                     console.error("Start Error:", e);
+                }
+            }
+        }
+
+        /**
+         * Analyzes the transcribed text for sentiment using the LLM and calls the Friend Assistant.
+         * This uses structured output to reliably get the frustration score and clean query.
+         */
+        async function analyzeVoiceInput(voiceQuery) {
+            if (!voiceQuery) return;
+            
+            const sentimentSystemPrompt = `You are a sentiment analyzer. Analyze the user's frustration level (1-10) based on their voice transcription. Output a JSON object containing the score and the clean core problem (query).`;
+
+            const sentimentQuery = `Analyze this user statement for frustration (1-10) and extract the main query: "${voiceQuery}".`;
+
+            const sentimentPayload = {
+                contents: [{ parts: [{ text: sentimentQuery }] }],
+                generationConfig: {
+                     responseMimeType: "application/json",
+                     responseSchema: {
+                          type: "OBJECT",
+                          properties: {
+                              "frustration_score": { "type": "INTEGER", "description": "Frustration level from 1 (calm) to 10 (extremely frustrated)." },
+                              "clean_query": { "type": "STRING", "description": "The user's core problem, concisely restated." }
+                          },
+                          "propertyOrdering": ["frustration_score", "clean_query"]
+                     }
+                }
+            };
+            
+            let parsedData;
+            let finalFrustrationLevel = 3;
+            let finalQuery = voiceQuery;
+            
+            try {
+                // Use proxy for sentiment analysis API call
+                const response = await fetch("https://my-proxy-kqdgkoiu2-rasiks-projects-7c6364c8.vercel.app", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({...sentimentPayload, systemInstruction: { parts: [{ text: sentimentSystemPrompt }]}})
+                });
+                
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (jsonText) {
+                    parsedData = JSON.parse(jsonText);
+                    finalFrustrationLevel = Math.min(10, Math.max(1, parsedData.frustration_score || 3)); // Clamp 1-10
+                    finalQuery = parsedData.clean_query || voiceQuery;
+                } else {
+                    throw new Error("JSON parsing failed.");
+                }
+            } catch (e) {
+                console.error("Sentiment Analysis Error. Using default score.", e);
+                // Fallback score if API call or parsing fails
+                finalFrustrationLevel = 7; 
+                finalQuery = voiceQuery;
+                showCustomAlert("Could not analyze sentiment. Using high frustration level fallback (score 7).");
+            }
+
+            // 2. Pass to the Friend Assistant for guidance
+            callFriendAssistant(`User spoke (Frustration ${finalFrustrationLevel}/10): "${finalQuery}".`, finalFrustrationLevel);
+        }
+
+        // --- Event Listeners and Initialization ---
+
+        // Component Placement Buttons (DC Components)
+        document.getElementById('add-battery').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Battery;
+            placingComponent.type = 'Battery';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-resistor').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Resistor;
+            placingComponent.type = 'Resistor';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+        
+        document.getElementById('add-capacitor').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Capacitor;
+            placingComponent.type = 'Capacitor';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-inductor').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Inductor;
+            placingComponent.type = 'Inductor';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-led').addEventListener('click', () => {
+            placingComponent = ComponentTypes.LED;
+            placingComponent.type = 'LED';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-switch').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Switch;
+            placingComponent.type = 'Switch';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-multimeter').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Multimeter;
+            placingComponent.type = 'Multimeter';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+        
+        // --- VCC/Ground Component Buttons ---
+        document.getElementById('add-vcc').addEventListener('click', () => {
+            placingComponent = ComponentTypes.VCC;
+            placingComponent.type = 'VCC';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-ground').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Ground;
+            placingComponent.type = 'Ground';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+        
+        // --- Digital I/O Component Buttons (NEW) ---
+        document.getElementById('add-digital-in').addEventListener('click', () => {
+            placingComponent = ComponentTypes.DigitalInput;
+            placingComponent.type = 'DigitalInput';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-digital-out').addEventListener('click', () => {
+            placingComponent = ComponentTypes.DigitalOutput;
+            placingComponent.type = 'DigitalOutput';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+
+        // --- MOSFET Selection Logic ---
+        document.getElementById('add-mosfet').addEventListener('click', () => {
+            document.getElementById('mosfet-selection-modal').classList.remove('hidden');
+            hideComponentEditor();
+            callTeacherAssistant('MOSFET', 'MOSFET'); 
+        });
+
+        document.getElementById('place-mosfet-btn').addEventListener('click', () => {
+            const selector = document.getElementById('mosfet-model-select');
+            const selectedModel = selector.value;
+            
+            if (selectedModel) {
+                const tempMosfet = { ...ComponentTypes.MOSFET, type: 'MOSFET', model: selectedModel };
+                placingComponent = tempMosfet;
+                document.body.style.cursor = 'crosshair';
+                document.getElementById('mosfet-selection-modal').classList.add('hidden');
+                showCustomAlert(`Ready to place ${selectedModel} MOSFET. Click on the canvas.`);
+            } else {
+                showCustomAlert("Please select a MOSFET model first.");
+            }
+        });
+
+        // --- IC Selection Logic ---
+        document.getElementById('add-ic').addEventListener('click', () => {
+            document.getElementById('ic-selection-modal').classList.remove('hidden');
+            hideComponentEditor();
+            callTeacherAssistant('IC', 'IC');
+        });
+
+        document.getElementById('place-ic-btn').addEventListener('click', () => {
+            const selector = document.getElementById('ic-model-select');
+            const selectedModel = selector.value;
+            
+            if (selectedModel) {
+                const tempIC = { ...ComponentTypes.IC, type: 'IC', model: selectedModel };
+                placingComponent = tempIC;
+                document.body.style.cursor = 'crosshair';
+                document.getElementById('ic-selection-modal').classList.add('hidden');
+                showCustomAlert(`Ready to place ${selectedModel} IC. Click on the canvas.`);
+            } else {
+                showCustomAlert("Please select an IC model first.");
+            }
+        });
+
+
+        // Close modals if the user clicks outside the content area
+        document.getElementById('mosfet-selection-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'mosfet-selection-modal') {
+                 document.getElementById('mosfet-selection-modal').classList.add('hidden');
+            }
+        });
+        document.getElementById('ic-selection-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'ic-selection-modal') {
+                 document.getElementById('ic-selection-modal').classList.add('hidden');
+            }
+        });
+
+
+        document.getElementById('add-wire').addEventListener('click', () => {
+            placingComponent = null; 
+            document.body.style.cursor = 'default';
+            showCustomAlert("To connect components, click on the red connection point (node) on the side of the first component, then click the node of the second component. The wire will be created automatically! To delete a wire, just click on it.");
+            callTeacherAssistant('Wire', 'Wire');
+        });
+
+        // Reset Button
+        document.getElementById('reset-circuit').addEventListener('click', () => {
+            showCustomConfirm("Are you sure you want to reset the circuit and clear all components?", (confirmed) => {
+                if (confirmed) {
+                    resetCircuit();
+                }
+            });
+        });
+
+        // Experiment Selector Change Listener
+        document.getElementById('experiment-select').addEventListener('change', (e) => {
+            updateExperiment(e.target.value);
+        });
+
+        // Main Simulation Run Button
+        document.getElementById('run-simulation').addEventListener('click', runSimulation);
+
+        // --- Text Query Logic ---
+        document.getElementById('send-friend-query-btn').addEventListener('click', handleTextQuery);
+        document.getElementById('friend-text-query').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleTextQuery();
+            }
+        });
+
+        // --- Voice Chat Button Event Listener ---
+        document.getElementById('start-voice-chat-btn').addEventListener('click', startVoiceChat);
+
+        /** New function to handle typed text queries */
+        function handleTextQuery() {
+            const inputField = document.getElementById('friend-text-query');
+            const query = inputField.value.trim();
+
+            if (query === "") {
+                showCustomAlert("Please type your question or problem before sending.");
+                return;
+            }
+
+            // Clear input field immediately
+            inputField.value = '';
+
+            // Send query to the Friend Assistant. Use frustration level of 8 for specific questions
+            // to trigger detailed, thorough explanations instead of just brief guidance.
+            callFriendAssistant(`User typed a specific question/problem: "${query}"`, 8);
+        }
+
+        // --- VTT and Sentiment Analysis Logic ---
+        
+        /** Initiates the Web Speech API recognition process. */
+        function startVoiceChat() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const btn = document.getElementById('start-voice-chat-btn');
+            const transcribedOutput = document.getElementById('transcribed-text-output');
+            
+            if (!SpeechRecognition) {
+                showCustomAlert("Voice recognition is not supported in this browser (use Chrome or Edge).");
+                return;
+            }
+            
+            // Stop any previous instance
+            if (speechRecognition) {
+                speechRecognition.stop();
+            }
+
+            const recognition = new SpeechRecognition(); // Local declaration for handler access
+            speechRecognition = recognition;
+            
+            recognition.continuous = false; // Only get one result
+            recognition.lang = 'en-US';
+            
+            // VISUAL FEEDBACK
+            transcribedOutput.textContent = "Waiting for microphone...";
+            transcribedOutput.classList.remove('hidden');
+            btn.classList.replace('bg-red-400', 'bg-warning-red');
+
+            recognition.onaudiostart = () => {
+                btn.textContent = "🔊 Recording...";
+                transcribedOutput.textContent = "Listening...";
+            };
+            
+            recognition.onresult = (event) => {
+                const voiceQuery = event.results[0][0].transcript;
+                
+                // Display the final, successful transcription
+                transcribedOutput.textContent = `Query Transcribed: "${voiceQuery}"`;
+                
+                analyzeVoiceInput(voiceQuery);
+                // Reset is handled by onend/onerror
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech Recognition Error:', event.error);
+                let message;
+                if (event.error === 'no-speech') {
+                    message = "No speech detected. Please check your microphone and speak clearly.";
+                } else if (event.error === 'not-allowed') {
+                    message = "Microphone permission denied. Check your browser settings.";
+                } else {
+                    message = `Voice input failed. Error: ${event.error}. Note: HTTPS is required.`;
+                }
+                
+                btn.textContent = "🎙️ Error/Timeout";
+                btn.classList.replace('bg-warning-red', 'bg-red-400');
+                transcribedOutput.textContent = `VTT Error: ${event.error}`;
+                showCustomAlert(message);
+            };
+            
+            recognition.onend = () => {
+                 // Ensure button resets after recognition session ends
+                 btn.textContent = "🎙️ START VOICE CHAT";
+                 btn.classList.replace('bg-warning-red', 'bg-red-400');
+            };
+
+            try {
+                recognition.start();
+            } catch (e) {
+                if (e.name === 'InvalidStateError') {
+                     showCustomAlert("Voice recognition already active. Please wait or try again.");
+                } else {
+                     console.error("Start Error:", e);
+                }
+            }
+        }
+
+        /**
+         * Analyzes the transcribed text for sentiment using the LLM and calls the Friend Assistant.
+         * This uses structured output to reliably get the frustration score and clean query.
+         */
+        async function analyzeVoiceInput(voiceQuery) {
+            if (!voiceQuery) return;
+            
+            const sentimentSystemPrompt = `You are a sentiment analyzer. Analyze the user's frustration level (1-10) based on their voice transcription. Output a JSON object containing the score and the clean core problem (query).`;
+
+            const sentimentQuery = `Analyze this user statement for frustration (1-10) and extract the main query: "${voiceQuery}".`;
+
+            const sentimentPayload = {
+                contents: [{ parts: [{ text: sentimentQuery }] }],
+                generationConfig: {
+                     responseMimeType: "application/json",
+                     responseSchema: {
+                          type: "OBJECT",
+                          properties: {
+                              "frustration_score": { "type": "INTEGER", "description": "Frustration level from 1 (calm) to 10 (extremely frustrated)." },
+                              "clean_query": { "type": "STRING", "description": "The user's core problem, concisely restated." }
+                          },
+                          "propertyOrdering": ["frustration_score", "clean_query"]
+                     }
+                }
+            };
+            
+            let parsedData;
+            let finalFrustrationLevel = 3;
+            let finalQuery = voiceQuery;
+            
+            try {
+                // Use proxy for sentiment analysis API call
+                const response = await fetch("https://my-proxy-kqdgkoiu2-rasiks-projects-7c6364c8.vercel.app", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({...sentimentPayload, systemInstruction: { parts: [{ text: sentimentSystemPrompt }]}})
+                });
+                
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (jsonText) {
+                    parsedData = JSON.parse(jsonText);
+                    finalFrustrationLevel = Math.min(10, Math.max(1, parsedData.frustration_score || 3)); // Clamp 1-10
+                    finalQuery = parsedData.clean_query || voiceQuery;
+                } else {
+                    throw new Error("JSON parsing failed.");
+                }
+            } catch (e) {
+                console.error("Sentiment Analysis Error. Using default score.", e);
+                // Fallback score if API call or parsing fails
+                finalFrustrationLevel = 7; 
+                finalQuery = voiceQuery;
+                showCustomAlert("Could not analyze sentiment. Using high frustration level fallback (score 7).");
+            }
+
+            // 2. Pass to the Friend Assistant for guidance
+            callFriendAssistant(`User spoke (Frustration ${finalFrustrationLevel}/10): "${finalQuery}".`, finalFrustrationLevel);
+        }
+
+        // --- Event Listeners and Initialization ---
+
+        // Component Placement Buttons (DC Components)
+        document.getElementById('add-battery').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Battery;
+            placingComponent.type = 'Battery';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-resistor').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Resistor;
+            placingComponent.type = 'Resistor';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+        
+        document.getElementById('add-capacitor').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Capacitor;
+            placingComponent.type = 'Capacitor';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-inductor').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Inductor;
+            placingComponent.type = 'Inductor';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-led').addEventListener('click', () => {
+            placingComponent = ComponentTypes.LED;
+            placingComponent.type = 'LED';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-switch').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Switch;
+            placingComponent.type = 'Switch';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-multimeter').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Multimeter;
+            placingComponent.type = 'Multimeter';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+        
+        // --- VCC/Ground Component Buttons ---
+        document.getElementById('add-vcc').addEventListener('click', () => {
+            placingComponent = ComponentTypes.VCC;
+            placingComponent.type = 'VCC';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-ground').addEventListener('click', () => {
+            placingComponent = ComponentTypes.Ground;
+            placingComponent.type = 'Ground';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+        
+        // --- Digital I/O Component Buttons (NEW) ---
+        document.getElementById('add-digital-in').addEventListener('click', () => {
+            placingComponent = ComponentTypes.DigitalInput;
+            placingComponent.type = 'DigitalInput';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+        document.getElementById('add-digital-out').addEventListener('click', () => {
+            placingComponent = ComponentTypes.DigitalOutput;
+            placingComponent.type = 'DigitalOutput';
+            document.body.style.cursor = 'crosshair';
+            hideComponentEditor();
+            callTeacherAssistant(placingComponent.type, placingComponent.type);
+        });
+
+
+        // --- MOSFET Selection Logic ---
+        document.getElementById('add-mosfet').addEventListener('click', () => {
+            document.getElementById('mosfet-selection-modal').classList.remove('hidden');
+            hideComponentEditor();
+            callTeacherAssistant('MOSFET', 'MOSFET'); 
+        });
+
+        document.getElementById('place-mosfet-btn').addEventListener('click', () => {
+            const selector = document.getElementById('mosfet-model-select');
+            const selectedModel = selector.value;
+            
+            if (selectedModel) {
+                const tempMosfet = { ...ComponentTypes.MOSFET, type: 'MOSFET', model: selectedModel };
+                placingComponent = tempMosfet;
+                document.body.style.cursor = 'crosshair';
+                document.getElementById('mosfet-selection-modal').classList.add('hidden');
+                showCustomAlert(`Ready to place ${selectedModel} MOSFET. Click on the canvas.`);
+            } else {
+                showCustomAlert("Please select a MOSFET model first.");
+            }
+        });
+
+        // --- IC Selection Logic ---
+        document.getElementById('add-ic').addEventListener('click', () => {
+            document.getElementById('ic-selection-modal').classList.remove('hidden');
+            hideComponentEditor();
+            callTeacherAssistant('IC', 'IC');
+        });
+
+        document.getElementById('place-ic-btn').addEventListener('click', () => {
+            const selector = document.getElementById('ic-model-select');
+            const selectedModel = selector.value;
+            
+            if (selectedModel) {
+                const tempIC = { ...ComponentTypes.IC, type: 'IC', model: selectedModel };
+                placingComponent = tempIC;
+                document.body.style.cursor = 'crosshair';
+                document.getElementById('ic-selection-modal').classList.add('hidden');
+                showCustomAlert(`Ready to place ${selectedModel} IC. Click on the canvas.`);
+            } else {
+                showCustomAlert("Please select an IC model first.");
+            }
+        });
+
+
+        // Close modals if the user clicks outside the content area
+        document.getElementById('mosfet-selection-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'mosfet-selection-modal') {
+                 document.getElementById('mosfet-selection-modal').classList.add('hidden');
+            }
+        });
+        document.getElementById('ic-selection-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'ic-selection-modal') {
+                 document.getElementById('ic-selection-modal').classList.add('hidden');
+            }
+        });
+
+
+        document.getElementById('add-wire').addEventListener('click', () => {
+            placingComponent = null; 
+            document.body.style.cursor = 'default';
+            showCustomAlert("To connect components, click on the red connection point (node) on the side of the first component, then click the node of the second component. The wire will be created automatically! To delete a wire, just click on it.");
+            callTeacherAssistant('Wire', 'Wire');
+        });
+
+        // Reset Button
+        document.getElementById('reset-circuit').addEventListener('click', () => {
+            showCustomConfirm("Are you sure you want to reset the circuit and clear all components?", (confirmed) => {
+                if (confirmed) {
+                    resetCircuit();
+                }
+            });
+        });
+
+        // Experiment Selector Change Listener
+        document.getElementById('experiment-select').addEventListener('change', (e) => {
+            updateExperiment(e.target.value);
+        });
+
+        // Main Simulation Run Button
+        document.getElementById('run-simulation').addEventListener('click', runSimulation);
+    </script>
+</body>
+</html>
