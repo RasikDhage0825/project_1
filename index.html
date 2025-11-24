@@ -464,7 +464,7 @@
         
         // --- Gemini API Configuration ---
         // Using Vercel proxy to keep API key secure
-        const PROXY_URL = "https://my-proxy-kqdgkoiu2-rasiks-projects-7c6364c8.vercel.app";
+        const PROXY_URL = "/api/proxy";
         const API_KEY = ""; // Not needed with proxy, kept for compatibility
         
         // --- Circuit State Management ---
@@ -2139,7 +2139,7 @@
             const MAX_RETRIES = 5;
             for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
                 try {
-                    const response = await fetch("https://my-proxy-kqdgkoiu2-rasiks-projects-7c6364c8.vercel.app", {
+                    const response = await fetch("/api/proxy", {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
@@ -2443,7 +2443,7 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
             
             try {
                 // Use proxy for sentiment analysis API call
-                const response = await fetch("https://my-proxy-kqdgkoiu2-rasiks-projects-7c6364c8.vercel.app", {
+                const response = await fetch("/api/proxy", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({...sentimentPayload, systemInstruction: { parts: [{ text: sentimentSystemPrompt }]}})
@@ -2786,7 +2786,7 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
             
             try {
                 // Use proxy for sentiment analysis API call
-                const response = await fetch("https://my-proxy-kqdgkoiu2-rasiks-projects-7c6364c8.vercel.app", {
+                const response = await fetch("/api/proxy", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({...sentimentPayload, systemInstruction: { parts: [{ text: sentimentSystemPrompt }]}})
