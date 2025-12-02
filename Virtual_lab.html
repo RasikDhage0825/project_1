@@ -173,10 +173,10 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:col-span-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             
             <!-- ====== COLUMN 1: CONTROLS (Palette, Editor, Teacher AI) ====== -->
-            <div class="lg:col-span-1 space-y-6">
+            <div class="lg:col-span-1 space-y-6 lg:sticky lg:top-4">
                 
                 <!-- Component Palette (Organized) -->
                 <div class="bg-white p-6 rounded-xl shadow-lg">
@@ -288,7 +288,7 @@
                     <h3 class="text-lg font-bold mb-4 flex items-center text-primary-blue border-b pb-2">
                         <span role="img" aria-label="teacher" class="mr-2 text-xl">🎓</span> Teacher Assistant (Concept)
                     </h3>
-                    <div id="teacher-response-area" class="teacher-panel p-3 mb-4 overflow-y-auto max-h-48">
+                    <div id="teacher-response-area" class="teacher-panel p-3 mb-4 overflow-y-auto" style="max-height: 200px;">
                         <p class="chat-bubble text-gray-700 text-sm">I'm here to explain concepts and provide component information. Try placing a MOSFET or an IC!</p>
                     </div>
                     <div id="teacher-loading-indicator" class="hidden text-center mt-2">
@@ -310,7 +310,7 @@
                     <h3 class="text-lg font-bold mb-4 flex items-center text-success-green border-b pb-2">
                         <span role="img" aria-label="friend" class="mr-2 text-xl">🤖</span> Friend Assistant (Real-Time Guide)
                     </h3>
-                    <div id="friend-response-area" class="friend-panel p-3 mb-4 overflow-y-auto max-h-32">
+                    <div id="friend-response-area" class="friend-panel p-3 mb-4 overflow-y-auto" style="max-height: 180px;">
                         <p class="chat-bubble text-gray-700 text-sm">I'm your guide! To start, select an experiment from the dropdown above.</p>
                     </div>
 
@@ -463,9 +463,10 @@
         let currentGoalText = EXPERIMENTS.OHMS_LAW.goal;
         
         // --- Gemini API Configuration ---
-        // Using Vercel proxy to keep API key secure
-        const PROXY_URL = "https://my-proxy-kqdgkoiu2-rasiks-projects-7c6364c8.vercel.app";
-        const API_KEY = ""; // Not needed with proxy, kept for compatibility
+        // NOTE: The API_KEY variable must be set here for local testing. 
+        // DO NOT expose your actual key in shared code.
+        //const API_KEY = "AIzaSyCaJ3pKpICjxB3rOfDtV2rFGLFk0EHqxpk"; // PASTE YOUR GENERATED GEMINI KEY HERE
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
         
         // --- Circuit State Management ---
         const GRID_SIZE = 50; // Size of the snap-to grid in pixels
@@ -2133,13 +2134,21 @@
             const responseArea = document.getElementById(responseAreaId);
             loadingIndicator.classList.remove('hidden');
             
-            // Inject system instruction into payload
+            // CRITICAL FIX FOR 401 ERROR: Check if API_KEY is set.
+            if (API_KEY === "") {
+                responseArea.innerHTML = `<p class="chat-bubble text-warning-red text-sm">AUTHORIZATION ERROR: Please paste your Gemini API key into the 'API_KEY' variable in the script block.</p>`;
+                loadingIndicator.classList.add('hidden');
+                return "API_ERROR";
+            }
+            
+            // Inject system instruction and API Key
             payload.systemInstruction = { parts: [{ text: systemPrompt }] };
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
             
             const MAX_RETRIES = 5;
             for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
                 try {
-                    const response = await fetch(PROXY_URL, {
+                    const response = await fetch("/api/gemini", {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
@@ -2152,6 +2161,10 @@
                     }
 
                     if (!response.ok) {
+                        // CRITICAL: Catch 401/403 errors explicitly here for user feedback
+                        if (response.status === 401 || response.status === 403) {
+                             throw new Error("Authorization failed (401/403). Check API Key.");
+                        }
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     
@@ -2240,46 +2253,44 @@
             
             // 2. Adjust Guidance based on Frustration Level
             let guidanceTone;
-            if (frustrationLevel >= 7) {
-                guidanceTone = "Your student is highly frustrated or asking a specific question (Level 7+). Provide DETAILED, COMPLETE answers. If it's a question, answer it thoroughly with explanations, formulas, examples, and calculations. If it's circuit guidance, provide the ABSOLUTE SIMPLEST, one-step instruction with clear reasoning (e.g., 'Place the Resistor first because...' or 'Connect Node 0 to Node 1 to complete...'). Be direct and educational.";
+            if (frustrationLevel >= 9) {
+                guidanceTone = "Student is EXTREMELY frustrated (9-10). Give the ABSOLUTE SIMPLEST single action (like 'Click Battery button' or 'Place component here'). ONE sentence ONLY. No explanations. Just tell them exactly what to do right now.";
+            } else if (frustrationLevel >= 7) {
+                guidanceTone = "Student is very frustrated (7-8). Give ONE simple step at a time with minimal explanation. Be direct and clear. Example: 'Place the Battery first, then add the Resistor.' Maximum 2 sentences.";
             } else if (frustrationLevel >= 5) {
-                guidanceTone = "Your student is slightly frustrated (Level 5-6). Provide clear, concise explanations with two-step guidance or gentle correction. Use encouraging language and explain WHY each step matters.";
+                guidanceTone = "Student is frustrated (5-6). Give clear, simple 2-3 step guidance. Keep it straightforward and encouraging. Break down the task into easy actions.";
             } else {
-                guidanceTone = "Your student is calm (Level 1-4). Provide concise, effective, 1-2 sentence guidance for the next logical step with brief reasoning.";
+                guidanceTone = "Student is calm (1-4). Give brief guidance or answer questions directly in 2-3 sentences. Include helpful context.";
             }
             
-            // 3. Define the System Prompt
             // Detect if this is a direct question vs general action
             const isDirectQuestion = action.includes('typed a specific question') || action.includes('User spoke');
             
-            const systemPrompt = `You are 'Friend Assistant', a responsive and patient real-time tutor.
+            // 3. Define the System Prompt
+            const systemPrompt = `You are Friend Assistant, a helpful circuit tutor.
 Current Experiment Goal: ${currentGoalText}.
 Digital Inputs: ${inputStateString}.
 
-**YOUR RESPONSE MODE:**
 ${isDirectQuestion ? 
-`The user asked a SPECIFIC QUESTION or DOUBT. Your job is to:
-1. DIRECTLY ANSWER their question with clear explanation
-2. Provide relevant circuit theory, formulas, or concepts if needed
-3. Give examples or calculations to clarify
-4. If they're stuck on an error, explain WHY it's wrong and HOW to fix it
-5. Be educational and thorough - SOLVE their doubt completely
-${guidanceTone}` 
+`The user asked a question. Answer it directly and completely. Give the solution with explanations, formulas, and examples. ${guidanceTone}` 
 : 
-`The user performed an action in the circuit. Your job is to:
-1. Provide concise guidance for the next step toward the experiment goal
-2. Check component presence and wiring topology
-3. Point out errors if present
-${guidanceTone}`}
+`The user performed an action. Give brief guidance for the next step. Check components and wiring. Point out errors if present. ${guidanceTone}`}
 
-**CRITICAL LOGIC CHECKLIST:**
-1.  **Component Presence:** Are all required components for the experiment goal present?
-2.  **Topology Check:** Analyze the JSON Wiring. Identify any unconnected or incorrectly connected pins.
-3.  **Digital Synthesis (If applicable):** If in DIGITAL_LOGIC mode, calculate the conceptual output signals (0 or 1) based on the placed IC's function and the current InputState (${inputStateString}). State the output (e.g., 'Output 0 is 1').
+Key Tasks:
+1. Check if required components are present
+2. Analyze wiring and connections
+3. For DIGITAL_LOGIC mode: calculate output signals based on IC function and inputs (${inputStateString}), state outputs like "Output 0 is 1"
 
-Component Naming Convention: MOSFET (Drain=D=Node 0, Source=S=Node 1, Gate=G=Node 2). Battery (Node 0=Negative, Node 1=Positive). IC Pins are P1 to P14. Digital I/O pins are IN-0 to IN-7 / OUT-0 to OUT-7.
+Component Naming: MOSFET (Drain=D=Node 0, Source=S=Node 1, Gate=G=Node 2). Battery (Node 0=Negative, Node 1=Positive). IC Pins are P1 to P14. Digital I/O pins are IN-0 to IN-7 / OUT-0 to OUT-7.
 
-Format: Respond in plain text, without markdown, bolding, or lists.`;
+IMPORTANT FORMATTING RULES:
+- Use plain text only
+- NO asterisks, NO stars, NO special characters for emphasis
+- NO markdown, NO bolding, NO formatting
+- NO bullet points or numbered lists
+- Write naturally in sentences
+- Keep responses concise and direct
+- Maximum 3-4 sentences unless answering a complex question`;
 
             const userQuery = `Current Circuit State (Components/Connections):\n${circuitContext}\n\nLast User Action: ${action}.`;
             
@@ -2418,9 +2429,28 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
         async function analyzeVoiceInput(voiceQuery) {
             if (!voiceQuery) return;
             
-            const sentimentSystemPrompt = `You are a sentiment analyzer. Analyze the user's frustration level (1-10) based on their voice transcription. Output a JSON object containing the score and the clean core problem (query).`;
+            const sentimentSystemPrompt = `You are an advanced sentiment and frustration analyzer for students doing circuit experiments.
 
-            const sentimentQuery = `Analyze this user statement for frustration (1-10) and extract the main query: "${voiceQuery}".`;
+Analyze the user's voice input and detect their frustration level (1-10) based on:
+- Tone indicators: words like "confused", "stuck", "don't understand", "help", "frustrated", "annoyed"
+- Urgency: words like "please", "really need", "desperately"
+- Negativity: words like "not working", "failed", "error", "wrong", "can't"
+- Repetition: repeated questions or mentions of same problem
+- Strong language: "what the hell", "damn", "why won't", etc.
+
+Frustration Levels:
+1-3: Calm, neutral questions ("what is", "how do I", "can you explain")
+4-6: Slightly confused or stuck ("I don't understand", "this isn't working", "I'm stuck")
+7-8: Frustrated ("nothing works", "I can't figure this out", "please help", "this is confusing")
+9-10: Very frustrated ("I give up", "this is impossible", "why isn't this working", repeated failures)
+
+Output a JSON with frustration_score (1-10) and clean_query (the actual question/problem).`;
+
+            const sentimentQuery = `Analyze this student's voice input during a circuit experiment for frustration level (1-10) and extract their main question or problem:
+
+"${voiceQuery}"
+
+Consider the context: They are building electronic circuits and may be stuck on component placement, wiring, or understanding concepts. Be sensitive to subtle frustration indicators.`;
 
             const sentimentPayload = {
                 contents: [{ parts: [{ text: sentimentQuery }] }],
@@ -2429,10 +2459,20 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
                      responseSchema: {
                           type: "OBJECT",
                           properties: {
-                              "frustration_score": { "type": "INTEGER", "description": "Frustration level from 1 (calm) to 10 (extremely frustrated)." },
-                              "clean_query": { "type": "STRING", "description": "The user's core problem, concisely restated." }
+                              "frustration_score": { 
+                                  "type": "INTEGER", 
+                                  "description": "Frustration level from 1 (calm/curious) to 10 (extremely frustrated/giving up). Consider tone, word choice, and emotional indicators." 
+                              },
+                              "clean_query": { 
+                                  "type": "STRING", 
+                                  "description": "The student's core question or problem, clearly restated without emotional words." 
+                              },
+                              "detected_emotions": {
+                                  "type": "STRING",
+                                  "description": "Brief note on detected emotional state (e.g., 'confused', 'frustrated', 'calm', 'stuck')."
+                              }
                           },
-                          "propertyOrdering": ["frustration_score", "clean_query"]
+                          "propertyOrdering": ["frustration_score", "clean_query", "detected_emotions"]
                      }
                 }
             };
@@ -2442,8 +2482,9 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
             let finalQuery = voiceQuery;
             
             try {
-                // Use proxy for sentiment analysis API call
-                const response = await fetch(PROXY_URL, {
+                // Use a dedicated API call structure for JSON output (similar to genericAPICaller but handling JSON structure)
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+                const response = await fetch("/api/gemini", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({...sentimentPayload, systemInstruction: { parts: [{ text: sentimentSystemPrompt }]}})
@@ -2454,8 +2495,15 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
                 
                 if (jsonText) {
                     parsedData = JSON.parse(jsonText);
-                    finalFrustrationLevel = Math.min(10, Math.max(1, parsedData.frustration_score || 3)); // Clamp 1-10
+                    finalFrustrationLevel = Math.min(10, Math.max(1, parsedData.frustration_score || 3));
                     finalQuery = parsedData.clean_query || voiceQuery;
+                    
+                    // Display emotion detection feedback to user
+                    const transcribedOutput = document.getElementById('transcribed-text-output');
+                    const emotionNote = parsedData.detected_emotions ? ` (Detected: ${parsedData.detected_emotions})` : '';
+                    transcribedOutput.textContent = `Query: "${finalQuery}" | Frustration: ${finalFrustrationLevel}/10${emotionNote}`;
+                    
+                    console.log(`Voice Analysis - Frustration: ${finalFrustrationLevel}/10, Emotion: ${parsedData.detected_emotions}, Query: ${finalQuery}`);
                 } else {
                     throw new Error("JSON parsing failed.");
                 }
@@ -2761,9 +2809,28 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
         async function analyzeVoiceInput(voiceQuery) {
             if (!voiceQuery) return;
             
-            const sentimentSystemPrompt = `You are a sentiment analyzer. Analyze the user's frustration level (1-10) based on their voice transcription. Output a JSON object containing the score and the clean core problem (query).`;
+            const sentimentSystemPrompt = `You are an advanced sentiment and frustration analyzer for students doing circuit experiments.
 
-            const sentimentQuery = `Analyze this user statement for frustration (1-10) and extract the main query: "${voiceQuery}".`;
+Analyze the user's voice input and detect their frustration level (1-10) based on:
+- Tone indicators: words like "confused", "stuck", "don't understand", "help", "frustrated", "annoyed"
+- Urgency: words like "please", "really need", "desperately"
+- Negativity: words like "not working", "failed", "error", "wrong", "can't"
+- Repetition: repeated questions or mentions of same problem
+- Strong language: "what the hell", "damn", "why won't", etc.
+
+Frustration Levels:
+1-3: Calm, neutral questions ("what is", "how do I", "can you explain")
+4-6: Slightly confused or stuck ("I don't understand", "this isn't working", "I'm stuck")
+7-8: Frustrated ("nothing works", "I can't figure this out", "please help", "this is confusing")
+9-10: Very frustrated ("I give up", "this is impossible", "why isn't this working", repeated failures)
+
+Output a JSON with frustration_score (1-10) and clean_query (the actual question/problem).`;
+
+            const sentimentQuery = `Analyze this student's voice input during a circuit experiment for frustration level (1-10) and extract their main question or problem:
+
+"${voiceQuery}"
+
+Consider the context: They are building electronic circuits and may be stuck on component placement, wiring, or understanding concepts. Be sensitive to subtle frustration indicators.`;
 
             const sentimentPayload = {
                 contents: [{ parts: [{ text: sentimentQuery }] }],
@@ -2772,10 +2839,20 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
                      responseSchema: {
                           type: "OBJECT",
                           properties: {
-                              "frustration_score": { "type": "INTEGER", "description": "Frustration level from 1 (calm) to 10 (extremely frustrated)." },
-                              "clean_query": { "type": "STRING", "description": "The user's core problem, concisely restated." }
+                              "frustration_score": { 
+                                  "type": "INTEGER", 
+                                  "description": "Frustration level from 1 (calm/curious) to 10 (extremely frustrated/giving up). Consider tone, word choice, and emotional indicators." 
+                              },
+                              "clean_query": { 
+                                  "type": "STRING", 
+                                  "description": "The student's core question or problem, clearly restated without emotional words." 
+                              },
+                              "detected_emotions": {
+                                  "type": "STRING",
+                                  "description": "Brief note on detected emotional state (e.g., 'confused', 'frustrated', 'calm', 'stuck')."
+                              }
                           },
-                          "propertyOrdering": ["frustration_score", "clean_query"]
+                          "propertyOrdering": ["frustration_score", "clean_query", "detected_emotions"]
                      }
                 }
             };
@@ -2785,8 +2862,9 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
             let finalQuery = voiceQuery;
             
             try {
-                // Use proxy for sentiment analysis API call
-                const response = await fetch(PROXY_URL, {
+                // Use a dedicated API call structure for JSON output (similar to genericAPICaller but handling JSON structure)
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({...sentimentPayload, systemInstruction: { parts: [{ text: sentimentSystemPrompt }]}})
@@ -2797,8 +2875,15 @@ Format: Respond in plain text, without markdown, bolding, or lists.`;
                 
                 if (jsonText) {
                     parsedData = JSON.parse(jsonText);
-                    finalFrustrationLevel = Math.min(10, Math.max(1, parsedData.frustration_score || 3)); // Clamp 1-10
+                    finalFrustrationLevel = Math.min(10, Math.max(1, parsedData.frustration_score || 3));
                     finalQuery = parsedData.clean_query || voiceQuery;
+                    
+                    // Display emotion detection feedback to user
+                    const transcribedOutput = document.getElementById('transcribed-text-output');
+                    const emotionNote = parsedData.detected_emotions ? ` (Detected: ${parsedData.detected_emotions})` : '';
+                    transcribedOutput.textContent = `Query: "${finalQuery}" | Frustration: ${finalFrustrationLevel}/10${emotionNote}`;
+                    
+                    console.log(`Voice Analysis - Frustration: ${finalFrustrationLevel}/10, Emotion: ${parsedData.detected_emotions}, Query: ${finalQuery}`);
                 } else {
                     throw new Error("JSON parsing failed.");
                 }
